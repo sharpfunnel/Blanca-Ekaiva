@@ -1,26 +1,248 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   Design tokens
+   Extracted from the Plumbing Pro Framer template (plumbingpro.framer.website):
+   neutral ramp, 16px radius, Geist/Inter pairing and the 12-60px type scale.
+   The template's orange accent (#ff5e15) is re-mapped to the Blanca gold, and
+   the template's own #142f45 navy doubles as the Blanca brand navy.
+   ========================================================================== */
+
+@theme {
+  /* Neutral ramp — verbatim from the template's CSS custom properties */
+  --color-ink: #0b0b0b;
+  --color-ink-2: #1a1a1a;
+  --color-ink-3: #262626;
+  --color-ink-4: #2e2e2e;
+  --color-body: #4d4d4d;
+  --color-body-2: #454545;
+  --color-muted: #757575;
+  --color-line: #e6e6e6;
+  --color-line-2: #ededed;
+  --color-line-3: #d1d1d1;
+  --color-surface: #fafafa;
+  --color-surface-2: #fcfcfc;
+  --color-surface-3: #f9fafb;
+
+  /* Brand — navy is the template's own #142f45; gold replaces the orange accent */
+  --color-navy: #142f45;
+  --color-navy-2: #1d4160;
+  --color-gold: #c5a059;
+  --color-gold-light: #e0c489;
+  --color-gold-dark: #a8853f;
+
+  /* Translucent overlays used on dark sections (template tokens) */
+  --color-glass: #ffffff1a;
+  --color-glass-2: #ffffff26;
+
+  /* Type scale — the exact px sizes present in the template stylesheet */
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --text-4xl: 31px;
+  --text-5xl: 36px;
+  --text-6xl: 38px;
+  --text-7xl: 48px;
+  --text-8xl: 60px;
+
+  --radius-card: 16px;
+
+  --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Framer's default spring-ish easing */
+  --ease-framer: cubic-bezier(0.44, 0, 0.16, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ==========================================================================
+   Base
+   ========================================================================== */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    /* offset anchor targets so the sticky header never covers a heading —
+       the mobile header is shorter, so it needs less clearance */
+    scroll-padding-top: 76px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (min-width: 640px) {
+    html {
+      scroll-padding-top: 96px;
+    }
+  }
+
+  body {
+    background: #ffffff;
+    color: var(--color-body);
+    font-family: var(--font-sans);
+    /* 16px on phones — 18px body copy forces too few words per line at 390px */
+    font-size: var(--text-base);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    /* long unbroken strings (emails, URLs) must never widen the viewport */
+    overflow-wrap: break-word;
+    /* kills the grey flash iOS/Android paint over tapped links and buttons */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (min-width: 640px) {
+    body {
+      font-size: var(--text-lg);
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--color-ink);
+    letter-spacing: -0.02em;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+
+  /* Keyboard focus ring — visible on both light and dark sections.
+     Deliberately does not set border-radius: the outline already follows each
+     element's own shape, and overriding it would square off the pill CTAs. */
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 3px;
+  }
+
+  /* Strip iOS Safari's inner shadow and default rounding on text fields.
+     Selects are excluded — appearance:none there would remove the dropdown
+     arrow, which is restored explicitly below. */
+  input,
+  textarea {
+    appearance: none;
+  }
+
+  /* Custom dropdown chevron, since appearance:none removes the native one. */
+  select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23757575' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1.15rem;
+    padding-right: 2.75rem;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ==========================================================================
+   Scroll-reveal animations
+   Driven by IntersectionObserver in components/ui/Reveal.tsx — the element
+   starts in the "from" state and gets [data-revealed] once it enters view.
+   ========================================================================== */
+
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 0.7s var(--ease-framer),
+      transform 0.7s var(--ease-framer);
+    transition-delay: var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .reveal[data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Per-word heading reveal — mirrors the template's split-text headings,
+     where each word rises and fades in on a staggered delay. */
+  .word {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(0.45em);
+    transition:
+      opacity 0.55s var(--ease-framer),
+      transform 0.55s var(--ease-framer);
+    transition-delay: var(--word-delay, 0ms);
+    will-change: opacity, transform;
+  }
+
+  .word[data-revealed="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Marquee used by the amenity and trust rails */
+  .marquee-track {
+    animation: marquee var(--marquee-duration, 40s) linear infinite;
+  }
+
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+
+  /* Hides the scrollbar on the horizontally draggable card rails */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* the track renders its children twice, so -50% is one seamless loop */
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(37 211 102 / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgb(37 211 102 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(37 211 102 / 0);
+  }
+}
+
+/* ==========================================================================
+   Accessibility — respect reduced-motion by disabling all motion outright
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal,
+  .word {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .marquee-track {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
