@@ -282,7 +282,7 @@ export function LeadForm({
         }`}
       >
         <Icon name="shield" className="size-4 shrink-0" />
-        100% free &amp; confidential — Rahul calls back within 30 minutes.
+        100% free &amp; confidential — we call back within 30 minutes.
       </p>
     </form>
   );

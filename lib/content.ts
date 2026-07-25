@@ -25,8 +25,12 @@ export const hero = {
     "Iconic Curved Glass Tower",
     "Office & Retail Available",
   ],
+  /** Headline price — the asterisk ties to the indicative-pricing note. */
+  priceLabel: "Starting from",
+  priceValue: "₹99 Lacs*",
+  priceNote: "*Indicative starting price — full price list shared on enquiry.",
   primaryCta: "Get Price & Floor Plan",
-  secondaryCta: "Call Rahul Thakur",
+  secondaryCta: "Call Now",
 } as const;
 
 /** Stat bar pinned to the bottom of the hero. */
@@ -75,7 +79,7 @@ export const spaces = {
   heading: "The Address for Business",
   intro:
     "Two ways to own a piece of Navi Mumbai's most distinctive commercial tower.",
-  note: "Floor plans and pricing shared on enquiry.",
+  note: "Starting from ₹99 Lacs — floor plans and full pricing shared on enquiry.",
   items: [
     {
       title: "Office Spaces",
@@ -191,7 +195,7 @@ export const location = {
   intro:
     "At the centre of Navi Mumbai's commercial corridor, minutes from the rail, road and air links that matter.",
   distances: [
-    { time: "5 min", place: "Turbhe Railway Station" },
+    { time: "5 min", place: "Turbhe & Juinagar Railway Station" },
     { time: "15 min", place: "Vashi & Nerul" },
     { time: "20 min", place: "Navi Mumbai Intl. Airport" },
     { time: "25 min", place: "Atal Setu" },

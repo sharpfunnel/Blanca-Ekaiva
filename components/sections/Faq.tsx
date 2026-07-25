@@ -38,7 +38,7 @@ export function Faq() {
                   className="mt-4 w-full sm:w-auto"
                 >
                   <Icon name="phone" className="size-5" />
-                  Call Rahul Thakur
+                  Call Now
                 </Button>
               </div>
             </Reveal>

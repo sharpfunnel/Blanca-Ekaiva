@@ -45,7 +45,7 @@ export function ContactCard() {
           <SectionHeading
             label="Your Point of Contact"
             heading="Talk to Someone Who *Knows the Tower*"
-            intro={`Every enquiry is handled personally by ${contact.name}, ${contact.role}. No call centres, no runaround.`}
+            intro={`Every enquiry is handled personally by the ${contact.role}. No call centres, no runaround.`}
             onDark
           />
 

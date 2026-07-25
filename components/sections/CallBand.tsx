@@ -59,7 +59,7 @@ export function CallBand() {
             </Button>
             <Button href={whatsappHref} variant="onDark" size="lg">
               <Icon name="whatsapp" className="size-5" />
-              WhatsApp Rahul
+              WhatsApp Us
             </Button>
           </div>
         </Reveal>

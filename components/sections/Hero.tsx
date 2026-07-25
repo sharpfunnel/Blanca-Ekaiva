@@ -116,8 +116,21 @@ export function Hero() {
             </ul>
           </Reveal>
 
+          {/* Headline price — the strongest single qualifier for a paid ad
+              audience, so it sits directly above the CTAs. */}
+          <Reveal delay={660}>
+            <div className="mt-7 flex items-baseline gap-2.5 sm:mt-8">
+              <span className="text-sm text-white/60 sm:text-base">
+                {hero.priceLabel}
+              </span>
+              <span className="font-display text-3xl font-semibold text-gold sm:text-4xl">
+                {hero.priceValue}
+              </span>
+            </div>
+          </Reveal>
+
           <Reveal delay={700}>
-            <div className="mt-7 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:items-center">
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button href="#enquire" size="lg">
                 {hero.primaryCta}
                 <Icon name="arrowRight" className="size-5" />
@@ -127,6 +140,10 @@ export function Hero() {
                 {hero.secondaryCta}
               </Button>
             </div>
+          </Reveal>
+
+          <Reveal delay={760}>
+            <p className="mt-4 text-xs text-white/45">{hero.priceNote}</p>
           </Reveal>
         </div>
 
