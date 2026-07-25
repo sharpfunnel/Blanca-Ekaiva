@@ -31,7 +31,7 @@ export const hero = {
 
 /** Stat bar pinned to the bottom of the hero. */
 export const heroStats = [
-  { value: "5 Min", label: "From Turbhe Station" },
+  { value: "5 Min", label: "From Turbe & Juinagar Station" },
   { value: "20 Min", label: "From New Airport" },
   { value: "700+", label: "Car Parking" },
   { value: "15+", label: "Premium Amenities" },
