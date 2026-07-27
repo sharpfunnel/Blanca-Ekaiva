@@ -28,6 +28,9 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 /** Supplied by the client before the campaign goes live. */
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
+/** Google Tag Manager container. Env var overrides the default at deploy time. */
+const gtmId = process.env.NEXT_PUBLIC_GTM_ID ?? "GTM-K8NP5ZS2";
+
 const title = `${site.project} — Iconic Offices & Retail Outlets in Turbhe, Navi Mumbai`;
 const description =
   "Landmark commercial spaces at Turbhe, Navi Mumbai. Iconic curved-glass elevation, maximum ceiling height, open column structure, rooftop restaurant and 15+ premium amenities. MahaRERA PC1330002600093. Get floor plans and pricing.";
@@ -89,9 +92,35 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-IN" className={`${geist.variable} ${inter.variable}`}>
+      <head>
+        {/* Google Tag Manager — afterInteractive is Next's recommended strategy
+            for tag managers; it injects the loader into <head> at runtime. */}
+        {gtmId ? (
+          <Script id="gtm" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${gtmId}');`}
+          </Script>
+        ) : null}
+      </head>
       {/* `overflow-x: clip` rather than `hidden` — hidden would make the body a
           scroll container and break `position: sticky` inside the page. */}
       <body className="min-h-full overflow-x-clip antialiased">
+        {/* Google Tag Manager (noscript) — must sit immediately after <body>. */}
+        {gtmId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+        ) : null}
+
         {/* Skip link — first tab stop for keyboard and screen-reader users. */}
         <a
           href="#main"
