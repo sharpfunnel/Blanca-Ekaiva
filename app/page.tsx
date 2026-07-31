@@ -1,6 +1,7 @@
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { StickyActions } from "@/components/layout/StickyActions";
+import { Tracker } from "@/components/track/Tracker";
 import { Amenities } from "@/components/sections/Amenities";
 import { CallBand } from "@/components/sections/CallBand";
 import { ContactCard } from "@/components/sections/ContactCard";
@@ -66,6 +67,9 @@ export default function Home() {
       />
 
       <SiteHeader />
+
+      {/* Visitor tracking — landing page only (admin routes are never tracked) */}
+      <Tracker />
 
       <main id="main">
         {/* 1 — Hero + floating lead form */}

@@ -50,6 +50,24 @@
   --text-7xl: 48px;
   --text-8xl: 60px;
 
+  /* Admin panel — dark, premium SaaS surface (Vercel/Linear/Clarity register) */
+  --color-admin-bg: #090909;
+  --color-admin-panel: #0e0e0e;
+  --color-admin-card: #111111;
+  --color-admin-card-2: #161616;
+  --color-admin-hover: #1a1a1a;
+  --color-admin-border: #222222;
+  --color-admin-border-2: #2a2a2a;
+  --color-admin-fg: #ededed;
+  --color-admin-fg-2: #b4b4b4;
+  --color-admin-muted: #7a7a7a;
+  --color-admin-accent: #c5a059;
+  --color-admin-accent-2: #e0c489;
+  --color-admin-success: #34d399;
+  --color-admin-danger: #f87171;
+  --color-admin-info: #60a5fa;
+  --color-admin-warn: #fbbf24;
+
   --radius-card: 16px;
 
   --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;

@@ -101,6 +101,26 @@ export function LeadForm({
       });
     }
 
+    // Persist the lead to the analytics database (best-effort, non-blocking).
+    try {
+      const t = window.__blancaTrack;
+      void fetch("/api/track/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: lead.name,
+          phone: lead.phone,
+          interest: lead.interest,
+          ...(isFull ? { budget } : {}),
+          sessionId: t?.sessionId,
+          visitorId: t?.visitorId,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      /* analytics is best-effort; the WhatsApp hand-off is the source of truth */
+    }
+
     // Opened synchronously inside the submit handler so the browser treats it
     // as user-initiated.
     const message =

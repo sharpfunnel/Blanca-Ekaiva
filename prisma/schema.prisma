@@ -1,0 +1,275 @@
+// Analytics + CRM data model for the Blanca /admin panel.
+// Postgres. Every visitor, session, event, replay chunk and lead is captured
+// here by the tracking SDK (lib/track) via the ingest API routes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DeviceType {
+  DESKTOP
+  MOBILE
+  TABLET
+  SMART_TV
+  BOT
+  UNKNOWN
+}
+
+enum SessionStatus {
+  ACTIVE
+  IDLE
+  ENDED
+  BOUNCED
+}
+
+enum VisitorType {
+  NEW
+  RETURNING
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  INTERESTED
+  SITE_VISIT_SCHEDULED
+  NEGOTIATION
+  WON
+  LOST
+  SPAM
+}
+
+// Every discrete interaction. Click x/y power the click heatmap; SECTION_VIEW
+// + SCROLL power the scroll heatmap and funnel; the rest feed the event stream.
+enum EventType {
+  PAGEVIEW
+  CLICK
+  RAGE_CLICK
+  CTA_CLICK
+  ANCHOR_CLICK
+  PHONE_CLICK
+  WHATSAPP_CLICK
+  EMAIL_CLICK
+  DOWNLOAD_BROCHURE
+  BOOK_SITE_VISIT
+  FORM_OPEN
+  FORM_CLOSE
+  FORM_START
+  FORM_SUBMIT
+  SECTION_VIEW
+  SCROLL
+  VIDEO_PLAY
+  IMAGE_CLICK
+  OUTBOUND_LINK
+  HOVER
+  LEAD
+}
+
+model Visitor {
+  id           String   @id @default(cuid())
+  visitorId    String   @unique
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  sessionCount Int      @default(0)
+  leadCount    Int      @default(0)
+  isReturning  Boolean  @default(false)
+
+  sessions Session[]
+  leads    Lead[]
+
+  @@index([lastSeenAt])
+}
+
+model Session {
+  id           String        @id @default(cuid())
+  sessionId    String        @unique
+  visitor      Visitor       @relation(fields: [visitorId], references: [visitorId], onDelete: Cascade)
+  visitorId    String
+  visitorType  VisitorType   @default(NEW)
+  startedAt    DateTime      @default(now())
+  lastActiveAt DateTime      @default(now())
+  endedAt      DateTime?
+  durationMs   Int           @default(0)
+  status       SessionStatus @default(ACTIVE)
+
+  // Network / geo (filled server-side from edge geo headers)
+  ip          String?
+  country     String?
+  countryCode String?
+  city        String?
+  region      String?
+  timezone    String?
+  language    String?
+  network     String?
+
+  // Device / client
+  device         DeviceType @default(UNKNOWN)
+  os             String?
+  osVersion      String?
+  browser        String?
+  browserVersion String?
+  screenW        Int?
+  screenH        Int?
+  viewportW      Int?
+  viewportH      Int?
+
+  // Acquisition
+  referrer      String?
+  trafficSource String? // google, facebook, instagram, direct, whatsapp...
+  trafficMedium String? // organic, cpc, referral, social, email...
+  campaign      String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  utmTerm       String?
+  utmContent    String?
+  landingPage   String?
+  exitPage      String?
+  currentPage   String?
+
+  // Engagement counters (denormalized; updated as events arrive)
+  pageViews     Int     @default(0)
+  clicks        Int     @default(0)
+  mouseMoves    Int     @default(0)
+  maxScrollPct  Int     @default(0)
+  avgScrollPct  Int     @default(0)
+  ctaClicked    Boolean @default(false)
+  formStarted   Boolean @default(false)
+  formSubmitted Boolean @default(false)
+  isBounce      Boolean @default(true)
+  isConverted   Boolean @default(false)
+
+  events       Event[]
+  pages        PageViewRec[]
+  replayEvents ReplayEvent[]
+  lead         Lead?
+
+  @@index([startedAt])
+  @@index([status])
+  @@index([country])
+  @@index([device])
+  @@index([trafficSource])
+}
+
+model PageViewRec {
+  id           String    @id @default(cuid())
+  session      Session   @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId    String
+  path         String
+  title        String?
+  enteredAt    DateTime  @default(now())
+  leftAt       DateTime?
+  timeOnMs     Int       @default(0)
+  maxScrollPct Int       @default(0)
+
+  @@index([sessionId])
+  @@index([path])
+}
+
+model Event {
+  id        String      @id @default(cuid())
+  session   Session     @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId String
+  type      EventType
+  path      String?
+  selector  String? // CSS-ish selector of the target element
+  text      String? // trimmed label/text of the target
+  x         Int? // click/hover viewport coordinate
+  y         Int?
+  pageX     Int? // absolute document coordinate
+  pageY     Int?
+  relX      Float? // 0..1 across page width — keeps heatmap responsive
+  relY      Float? // 0..1 down full document height
+  vpW       Int?
+  vpH       Int?
+  scrollPct Int?
+  device    DeviceType?
+  meta      Json?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+  @@index([type])
+  @@index([path])
+  @@index([createdAt])
+  @@index([type, path])
+}
+
+// rrweb event chunks for full session replay, batched to keep rows sane.
+model ReplayEvent {
+  id        String   @id @default(cuid())
+  session   Session  @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId String
+  seq       Int
+  events    Json // array of rrweb events
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, seq])
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  session   Session? @relation(fields: [sessionId], references: [sessionId])
+  sessionId String?  @unique
+  visitor   Visitor? @relation(fields: [visitorId], references: [visitorId])
+  visitorId String?
+
+  name     String
+  phone    String
+  email    String?
+  interest String? // Office / Retail / Both
+  budget   String?
+  message  String?
+  city     String?
+  country  String?
+
+  source      String?
+  campaign    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+
+  device  DeviceType?
+  browser String?
+  os      String?
+  ip      String?
+
+  status     LeadStatus @default(NEW)
+  assignedTo String?
+
+  notes      LeadNote[]
+  activities LeadActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([source])
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String
+  author    String?
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId    String
+  type      String // status_change | note_added | contacted | assigned ...
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
+}
