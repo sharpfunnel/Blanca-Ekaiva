@@ -16,7 +16,7 @@ import { site, telHref } from "@/lib/site";
  */
 export function Hero() {
   return (
-    <section className="relative isolate flex min-h-[100svh] flex-col justify-center overflow-hidden bg-ink pt-24 pb-0 sm:pt-32">
+    <section className="hero-shell relative isolate flex min-h-[100svh] flex-col justify-center overflow-hidden bg-ink pt-24 pb-0 sm:pt-32">
       {/*
         The render is portrait (1600×2286). On mobile the section is far taller
         than the viewport — the lead card and stat strip stack under the copy —

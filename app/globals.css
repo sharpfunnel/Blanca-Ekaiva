@@ -176,6 +176,22 @@
     transform: none;
   }
 
+  /* Heatmap backdrop: when the page is embedded in the admin heatmap
+     (?heatmap=1 adds .heatmap to <html>), force every scroll-reveal element
+     visible so the whole page renders as a still image behind the dots. */
+  :root.heatmap .reveal,
+  :root.heatmap .word {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* The hero's `min-height: 100svh` depends on the (iframe) viewport, which
+     causes a size feedback loop when the heatmap iframe is sized to the page's
+     content height. In heatmap mode, let the hero take its natural height. */
+  :root.heatmap .hero-shell {
+    min-height: 0 !important;
+  }
+
   /* Per-word heading reveal — mirrors the template's split-text headings,
      where each word rises and fades in on a staggered delay. */
   .word {

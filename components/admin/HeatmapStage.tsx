@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { HeatPoint, ScrollBucket } from "@/lib/admin/types";
 import { formatDuration, formatNumber } from "@/lib/admin/format";
 
@@ -26,6 +26,18 @@ function PageCanvas({
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(1600);
+
+  // The embedded page reports its real height (works even cross-origin).
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      const d = e.data as { type?: string; height?: number } | null;
+      if (d?.type === "blanca-heatmap-height" && typeof d.height === "number" && d.height > 0) {
+        setHeight(d.height);
+      }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
 
   const onLoad = useCallback(() => {
     const iframe = ref.current;
