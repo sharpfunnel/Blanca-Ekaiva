@@ -91,16 +91,27 @@ function cap(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** Ensure a Visitor + Session row exist so events/replays satisfy the FK. */
+/** Ensure a Visitor + Session row exist so events/replays satisfy the FK.
+ *  Race-safe: the session-init and the first replay/event chunk can arrive
+ *  concurrently, and two simultaneous upserts can still collide on the unique
+ *  key — a P2002 there just means the row now exists, so it is safe to ignore. */
 export async function ensureSession(sessionId: string, visitorId: string) {
-  await prisma.visitor.upsert({
-    where: { visitorId },
-    create: { visitorId },
-    update: { lastSeenAt: new Date() },
-  });
-  await prisma.session.upsert({
-    where: { sessionId },
-    create: { sessionId, visitorId },
-    update: { lastActiveAt: new Date() },
-  });
+  const ignoreConflict = (e: unknown) => {
+    if ((e as { code?: string })?.code === "P2002") return;
+    throw e;
+  };
+  await prisma.visitor
+    .upsert({
+      where: { visitorId },
+      create: { visitorId },
+      update: { lastSeenAt: new Date() },
+    })
+    .catch(ignoreConflict);
+  await prisma.session
+    .upsert({
+      where: { sessionId },
+      create: { sessionId, visitorId },
+      update: { lastActiveAt: new Date() },
+    })
+    .catch(ignoreConflict);
 }

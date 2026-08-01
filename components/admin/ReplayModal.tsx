@@ -1,23 +1,20 @@
 "use client";
 
+import "rrweb-player/dist/style.css";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import {
-  X,
-  Play,
-  Pause,
-  MousePointer2,
-  Monitor,
-  MapPin,
-  Clock,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { X, Monitor, MapPin, Clock, Film, Loader2 } from "lucide-react";
 import type { SessionRow } from "@/lib/admin/types";
+import { getReplay } from "@/lib/admin/api";
 import { formatDuration } from "@/lib/admin/format";
 
 /**
- * Session replay surface. The player chrome, cursor track, clicks and scrubber
- * are wired now; once rrweb events are captured to the DB, the recorded stream
- * mounts into the same frame (rrweb-player) in place of the demo cursor path.
+ * Real session replay. Fetches the session's recorded rrweb event stream and
+ * plays it back with rrweb-player (its own DOM reconstruction + controls), so
+ * you see exactly what the visitor saw and did — mouse moves, clicks, scrolls,
+ * navigation. Recordings need ≥ 2 events (a full snapshot plus one update);
+ * very short visits that never flushed show an honest empty state.
  */
 export function ReplayModal({
   session,
@@ -26,37 +23,60 @@ export function ReplayModal({
   session: SessionRow | null;
   onClose: () => void;
 }) {
-  const [playing, setPlaying] = useState(true);
-  const [progress, setProgress] = useState(0);
-  const [cursor, setCursor] = useState({ x: 30, y: 24 });
-  const [clickAt, setClickAt] = useState<{ x: number; y: number } | null>(null);
-  const raf = useRef<number | undefined>(undefined);
+  const holder = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const playerRef = useRef<any>(null);
+  const [mountError, setMountError] = useState(false);
 
-  // Demo cursor path — replaced by the recorded rrweb track once live.
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin", "replay", session?.id],
+    queryFn: () => getReplay(session!.id),
+    enabled: Boolean(session),
+  });
+
+  const events = data?.events ?? [];
+  const hasRecording = events.length >= 2;
+
+  // Mount / tear down the player whenever the recording changes.
   useEffect(() => {
-    if (!session || !playing) return;
-    let t = progress;
-    const tick = () => {
-      t = (t + 0.0025) % 1;
-      setProgress(t);
-      setCursor({
-        x: 20 + 60 * (0.5 + 0.5 * Math.sin(t * Math.PI * 4)),
-        y: 15 + 70 * t,
-      });
-      if (Math.random() < 0.01) {
-        setClickAt({ x: 20 + Math.random() * 60, y: 15 + Math.random() * 70 });
-        setTimeout(() => setClickAt(null), 500);
-      }
-      raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => {
-      if (raf.current) cancelAnimationFrame(raf.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, playing]);
+    if (!session || !hasRecording || !holder.current) return;
+    let destroyed = false;
 
-  const elapsed = session ? session.durationMs * progress : 0;
+    (async () => {
+      try {
+        const { default: rrwebPlayer } = await import("rrweb-player");
+        if (destroyed || !holder.current) return;
+        holder.current.innerHTML = "";
+        const width = Math.max(320, holder.current.clientWidth || 880);
+        const height = Math.round(width * 0.58);
+        playerRef.current = new rrwebPlayer({
+          target: holder.current,
+          props: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            events: events as any[],
+            width,
+            height,
+            autoPlay: true,
+            showController: true,
+            speedOption: [1, 2, 4, 8],
+          },
+        });
+      } catch {
+        setMountError(true);
+      }
+    })();
+
+    return () => {
+      destroyed = true;
+      try {
+        playerRef.current?.$destroy?.();
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null;
+      if (holder.current) holder.current.innerHTML = "";
+    };
+  }, [session, hasRecording, events]);
 
   return (
     <AnimatePresence>
@@ -73,7 +93,7 @@ export function ReplayModal({
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.97 }}
-            className="fixed inset-0 z-50 m-auto flex h-fit max-h-[90vh] w-[min(920px,94vw)] flex-col overflow-hidden rounded-2xl border border-admin-border bg-admin-panel"
+            className="fixed inset-0 z-50 m-auto flex h-fit max-h-[92vh] w-[min(960px,95vw)] flex-col overflow-hidden rounded-2xl border border-admin-border bg-admin-panel"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-admin-border px-5 py-3">
@@ -103,79 +123,47 @@ export function ReplayModal({
               </button>
             </div>
 
-            {/* Replay stage */}
-            <div className="relative aspect-video overflow-hidden bg-[#0a0a0a]">
-              {/* Mock page skeleton (stands in for the recorded DOM) */}
-              <div className="absolute inset-0 p-6 opacity-40">
-                <div className="mx-auto h-full max-w-md space-y-3">
-                  <div className="h-10 rounded-lg bg-admin-hover" />
-                  <div className="h-28 rounded-lg bg-admin-hover" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="h-20 rounded-lg bg-admin-hover" />
-                    <div className="h-20 rounded-lg bg-admin-hover" />
-                  </div>
-                  <div className="h-14 rounded-lg bg-admin-hover" />
+            {/* Player stage */}
+            <div className="relative flex min-h-[320px] items-center justify-center bg-[#0a0a0a] p-3">
+              {isLoading ? (
+                <div className="flex flex-col items-center gap-3 text-admin-muted">
+                  <Loader2 className="size-6 animate-spin" />
+                  <p className="text-xs">Loading recording…</p>
                 </div>
-              </div>
-
-              {/* Cursor */}
-              <motion.div
-                className="absolute z-10"
-                style={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
-                animate={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
-                transition={{ ease: "linear", duration: 0.05 }}
-              >
-                <MousePointer2 className="size-5 fill-white text-black drop-shadow" />
-              </motion.div>
-
-              {/* Click ripple */}
-              <AnimatePresence>
-                {clickAt ? (
-                  <motion.span
-                    initial={{ scale: 0, opacity: 0.8 }}
-                    animate={{ scale: 2.2, opacity: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="absolute z-10 size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-admin-accent"
-                    style={{ left: `${clickAt.x}%`, top: `${clickAt.y}%` }}
-                  />
-                ) : null}
-              </AnimatePresence>
-
-              <span className="absolute left-3 top-3 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white/70">
-                DEMO PLAYBACK · live rrweb capture wires in here
-              </span>
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center gap-3 border-t border-admin-border px-5 py-3">
-              <button
-                type="button"
-                onClick={() => setPlaying((p) => !p)}
-                className="flex size-9 items-center justify-center rounded-full bg-admin-accent text-black transition-colors hover:bg-admin-accent-2"
-              >
-                {playing ? (
-                  <Pause className="size-4" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-              </button>
-              <span className="w-10 text-[11px] tabular-nums text-admin-muted">
-                {formatDuration(elapsed)}
-              </span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-admin-card-2">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-admin-accent"
-                  style={{ width: `${progress * 100}%` }}
+              ) : isError || mountError ? (
+                <EmptyReplay
+                  title="Could not load this recording"
+                  hint="The event stream may be incomplete. Try another session."
                 />
-              </div>
-              <span className="w-10 text-right text-[11px] tabular-nums text-admin-muted">
-                {formatDuration(session.durationMs)}
-              </span>
+              ) : !hasRecording ? (
+                <EmptyReplay
+                  title="No recording for this session"
+                  hint="Very short visits (a quick bounce, or a tab closed before the first save) don't produce a replay. Sessions with real activity will play here."
+                />
+              ) : null}
+
+              {/* rrweb-player mounts here (kept in DOM so the ref is stable) */}
+              <div
+                ref={holder}
+                className="rrweb-holder w-full"
+                style={{ display: hasRecording && !mountError ? "block" : "none" }}
+              />
             </div>
           </motion.div>
         </>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+function EmptyReplay({ title, hint }: { title: string; hint: string }) {
+  return (
+    <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
+      <span className="flex size-12 items-center justify-center rounded-2xl border border-admin-border bg-admin-card-2 text-admin-muted">
+        <Film className="size-5" />
+      </span>
+      <p className="text-sm font-medium text-admin-fg">{title}</p>
+      <p className="text-xs text-admin-muted">{hint}</p>
+    </div>
   );
 }

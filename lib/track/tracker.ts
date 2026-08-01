@@ -134,19 +134,35 @@ export function initTracker() {
   window.__blancaTrack = { sessionId, visitorId };
 
   const params = new URLSearchParams(location.search);
-  const post = (url: string, body: unknown, beacon = false) => {
+
+  /**
+   * `unload = false` (in-session): a plain fetch with NO keepalive, so there is
+   * no ~64KB payload cap — full DOM snapshots (which routinely exceed 64KB) are
+   * sent intact. `unload = true` (page closing): sendBeacon / keepalive fetch,
+   * both capped at ~64KB, which is fine because in-session flushes have already
+   * persisted the large snapshot and only small deltas remain.
+   */
+  const post = (url: string, body: unknown, unload = false) => {
     try {
       const json = JSON.stringify(body);
-      if (beacon && navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([json], { type: "application/json" }));
-      } else {
+      if (unload) {
+        if (
+          navigator.sendBeacon?.(url, new Blob([json], { type: "application/json" }))
+        )
+          return;
         void fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: json,
           keepalive: true,
         }).catch(() => {});
+        return;
       }
+      void fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: json,
+      }).catch(() => {});
     } catch {
       /* never break the page */
     }
@@ -293,9 +309,10 @@ export function initTracker() {
   );
 
   // ── Periodic flush + on hide ─────────────────────────────────────────────
-  const interval = setInterval(() => flush(), 10_000);
+  const interval = setInterval(() => flush(), 8_000);
   addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") flush(true);
+    // A hidden tab may still resume; a plain fetch is uncapped and reliable here.
+    if (document.visibilityState === "hidden") flush();
   });
   addEventListener("pagehide", () => {
     clearInterval(interval);
@@ -306,26 +323,36 @@ export function initTracker() {
   try {
     let replayBuf: eventWithTime[] = [];
     let seq = 0;
-    const flushReplay = (beacon = false) => {
+    let snapshotSent = false;
+    const flushReplay = (unload = false) => {
       if (!replayBuf.length) return;
       const chunk = replayBuf;
       replayBuf = [];
-      post("/api/track/replay", { sessionId, visitorId, seq: seq++, events: chunk }, beacon);
+      snapshotSent = true;
+      post("/api/track/replay", { sessionId, visitorId, seq: seq++, events: chunk }, unload);
     };
     record({
       emit: (e) => {
         replayBuf.push(e);
-        if (replayBuf.length >= 60) flushReplay();
+        // Flush the very first batch (the meta + full DOM snapshot) as soon as
+        // it lands, via the uncapped in-session fetch, so it is never dropped.
+        if (!snapshotSent && replayBuf.length >= 2) flushReplay();
+        else if (replayBuf.length >= 50) flushReplay();
       },
-      sampling: { mousemove: 100, scroll: 150, input: "last" },
+      sampling: { mousemove: 50, scroll: 100, input: "last" },
       maskAllInputs: true, // never record what visitors type into the lead form
       recordCanvas: false,
-      checkoutEveryNms: 60_000,
+      checkoutEveryNms: 120_000,
     });
-    setInterval(() => flushReplay(), 12_000);
-    addEventListener("pagehide", () => flushReplay(true));
+    // Safety net in case the page produced fewer than 2 events by first tick.
+    setTimeout(() => flushReplay(), 2_500);
+    const replayInterval = setInterval(() => flushReplay(), 6_000);
     addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") flushReplay(true);
+      if (document.visibilityState === "hidden") flushReplay();
+    });
+    addEventListener("pagehide", () => {
+      clearInterval(replayInterval);
+      flushReplay(true);
     });
   } catch {
     /* replay optional — capture the rest regardless */

@@ -111,6 +111,17 @@ export async function getTechStack(): Promise<TechStackData> {
   return fetchJson(`/api/admin/tech-stack`);
 }
 
+/** Full rrweb event stream for a session (real session replay). */
+export async function getReplay(
+  sessionId: string
+): Promise<{ events: unknown[] }> {
+  if (USE_MOCK) {
+    await delay(200);
+    return { events: [] };
+  }
+  return fetchJson(`/api/admin/replay?sessionId=${encodeURIComponent(sessionId)}`);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url);

@@ -4,7 +4,6 @@ import { useId, useState, type FormEvent } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icons";
 import { budgetOptions, interestOptions } from "@/lib/content";
-import { contact, whatsappHref } from "@/lib/site";
 
 declare global {
   interface Window {
@@ -89,7 +88,7 @@ export function LeadForm({
       content_category: interest,
     });
 
-    // Fire-and-forget so the WhatsApp hand-off below is never popup-blocked.
+    // Optional external webhook (Zapier/CRM/Sheet), fire-and-forget.
     if (LEAD_WEBHOOK) {
       void fetch(LEAD_WEBHOOK, {
         method: "POST",
@@ -97,11 +96,12 @@ export function LeadForm({
         body: JSON.stringify(lead),
         keepalive: true,
       }).catch(() => {
-        /* the WhatsApp hand-off is the source of truth; never block the user */
+        /* best-effort; the database write below is the source of truth */
       });
     }
 
-    // Persist the lead to the analytics database (best-effort, non-blocking).
+    // Persist the lead to the analytics database — this is now the source of
+    // truth for every submission (both the hero and the full enquiry form).
     try {
       const t = window.__blancaTrack;
       void fetch("/api/track/lead", {
@@ -118,24 +118,8 @@ export function LeadForm({
         keepalive: true,
       }).catch(() => {});
     } catch {
-      /* analytics is best-effort; the WhatsApp hand-off is the source of truth */
+      /* best-effort; never block the confirmation */
     }
-
-    // Opened synchronously inside the submit handler so the browser treats it
-    // as user-initiated.
-    const message =
-      `Hi Rahul, I am interested in Blanca Ekaiva, Turbhe.\n\n` +
-      `Name: ${lead.name}\nPhone: ${lead.phone}\nInterest: ${lead.interest}` +
-      (isFull ? `\nBudget: ${budget}` : "") +
-      `\n\nPlease share the floor plans and pricing.`;
-
-    window.open(
-      `https://wa.me/${contact.phoneE164.replace(/\D/g, "")}?text=${encodeURIComponent(
-        message
-      )}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
 
     setSubmitted(true);
   }
@@ -161,14 +145,6 @@ export function LeadForm({
         <p className={`mt-2 text-base ${onDark ? "text-white/70" : "text-body"}`}>
           Rahul will call you within 30 minutes with floor plans and pricing.
         </p>
-        <Button
-          href={whatsappHref}
-          variant={onDark ? "onDark" : "outline"}
-          className="mt-6"
-        >
-          <Icon name="whatsapp" className="size-5" />
-          Continue on WhatsApp
-        </Button>
       </div>
     );
   }
