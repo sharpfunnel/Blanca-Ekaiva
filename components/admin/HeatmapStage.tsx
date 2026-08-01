@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { HeatPoint, ScrollBucket } from "@/lib/admin/types";
 import { formatDuration, formatNumber } from "@/lib/admin/format";
 
@@ -13,39 +13,65 @@ function heatColor(i: number): string {
   return "#ef4444"; // red
 }
 
-/** A stand-in for the landing-page screenshot the overlays sit on. */
-function PageMock() {
+/**
+ * Renders the REAL landing page as the heatmap backdrop via a same-origin
+ * iframe (?heatmap=1 disables tracking inside it), then overlays interaction
+ * dots on top. Reveal animations are forced visible and the page height is
+ * measured so relative (0..1) coordinates map onto the actual layout.
+ */
+function PageCanvas({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(1600);
+
+  const onLoad = useCallback(() => {
+    const iframe = ref.current;
+    try {
+      const doc = iframe?.contentDocument;
+      if (!doc) return;
+      // Force scroll-reveal content visible and kill animations/scrolling.
+      const style = doc.createElement("style");
+      style.textContent =
+        ".reveal,.word{opacity:1!important;transform:none!important}" +
+        "*{animation:none!important;transition:none!important}" +
+        "html{scroll-behavior:auto!important;overflow:hidden!important}";
+      doc.head.appendChild(style);
+      const measure = () => {
+        const h = Math.max(
+          doc.body?.scrollHeight ?? 0,
+          doc.documentElement?.scrollHeight ?? 0
+        );
+        if (h > 0) setHeight(h);
+      };
+      measure();
+      // Re-measure after images/fonts settle so late layout shifts are caught.
+      setTimeout(measure, 500);
+      setTimeout(measure, 1500);
+    } catch {
+      /* same-origin, but stay defensive */
+    }
+  }, []);
+
   return (
-    <div className="space-y-4 p-5 opacity-[0.55]">
-      <div className="flex items-center justify-between">
-        <div className="h-4 w-20 rounded bg-admin-hover" />
-        <div className="h-6 w-28 rounded-full bg-admin-hover" />
-      </div>
-      <div className="space-y-2 pt-8">
-        <div className="h-8 w-3/4 rounded bg-admin-hover" />
-        <div className="h-8 w-2/3 rounded bg-admin-hover" />
-        <div className="h-4 w-1/2 rounded bg-admin-hover/70" />
-        <div className="flex gap-2 pt-2">
-          <div className="h-9 w-40 rounded-full bg-admin-hover" />
-          <div className="h-9 w-32 rounded-full bg-admin-hover/70" />
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-3 pt-10">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-xl bg-admin-hover" />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3 pt-6">
-        <div className="h-40 rounded-xl bg-admin-hover" />
-        <div className="h-40 rounded-xl bg-admin-hover" />
-      </div>
-      <div className="grid grid-cols-4 gap-3 pt-6">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-28 rounded-xl bg-admin-hover" />
-        ))}
-      </div>
-      <div className="h-48 rounded-xl bg-admin-hover" />
-      <div className="mx-auto h-64 max-w-md rounded-xl bg-admin-hover" />
+    <div className="relative w-full overflow-hidden rounded-xl border border-admin-border bg-white">
+      <iframe
+        ref={ref}
+        src="/?heatmap=1"
+        title="Landing page preview"
+        scrolling="no"
+        onLoad={onLoad}
+        style={{
+          width: "100%",
+          height,
+          border: 0,
+          display: "block",
+          pointerEvents: "none",
+        }}
+      />
+      <div className="absolute inset-0">{children}</div>
     </div>
   );
 }
@@ -60,37 +86,32 @@ export function ClickHeatmap({
   const [hovered, setHovered] = useState<HeatPoint | null>(null);
 
   return (
-    <div className="relative mx-auto" style={{ maxWidth: frameWidth }}>
-      <div className="relative overflow-hidden rounded-xl border border-admin-border bg-admin-card">
-        <PageMock />
-        {/* Overlay */}
-        <div className="absolute inset-0">
-          {points.map((p, i) => {
-            const color = heatColor(p.intensity);
-            const size = 14 + p.intensity * 34;
-            return (
-              <button
-                key={i}
-                type="button"
-                onMouseEnter={() => setHovered(p)}
-                onMouseLeave={() => setHovered(null)}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{
-                  left: `${p.relX * 100}%`,
-                  top: `${p.relY * 100}%`,
-                  width: size,
-                  height: size,
-                  background: `radial-gradient(circle, ${color}cc 0%, ${color}66 45%, transparent 72%)`,
-                  boxShadow: `0 0 ${size / 1.5}px ${color}aa`,
-                }}
-                aria-label={p.label}
-              />
-            );
-          })}
-        </div>
-      </div>
+    <div className="relative mx-auto w-full" style={{ maxWidth: frameWidth }}>
+      <PageCanvas>
+        {points.map((p, i) => {
+          const color = heatColor(p.intensity);
+          const size = 14 + p.intensity * 34;
+          return (
+            <button
+              key={i}
+              type="button"
+              onMouseEnter={() => setHovered(p)}
+              onMouseLeave={() => setHovered(null)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                left: `${p.relX * 100}%`,
+                top: `${p.relY * 100}%`,
+                width: size,
+                height: size,
+                background: `radial-gradient(circle, ${color}cc 0%, ${color}66 45%, transparent 72%)`,
+                boxShadow: `0 0 ${size / 1.5}px ${color}aa`,
+              }}
+              aria-label={p.label}
+            />
+          );
+        })}
+      </PageCanvas>
 
-      {/* Tooltip */}
       {hovered ? (
         <div className="pointer-events-none absolute left-1/2 top-3 z-10 w-56 -translate-x-1/2 rounded-xl border border-admin-border bg-admin-card-2 p-3 text-xs shadow-2xl">
           <p className="mb-2 font-medium text-admin-fg">{hovered.label}</p>
@@ -134,14 +155,11 @@ export function ScrollHeatmap({
   frameWidth: number;
 }) {
   return (
-    <div className="relative mx-auto" style={{ maxWidth: frameWidth }}>
-      <div className="relative overflow-hidden rounded-xl border border-admin-border bg-admin-card">
-        <PageMock />
-        {/* Scroll bands: each 20% slice tinted by reach at its depth */}
-        <div className="absolute inset-0 flex flex-col">
+    <div className="relative mx-auto w-full" style={{ maxWidth: frameWidth }}>
+      <PageCanvas>
+        <div className="flex h-full flex-col">
           {buckets.map((b, i) => {
             const reach = b.reached / 100;
-            // warm where many reached, cool where few did
             const color =
               reach > 0.75
                 ? "#ef4444"
@@ -153,17 +171,17 @@ export function ScrollHeatmap({
             return (
               <div
                 key={i}
-                className="relative flex-1 border-b border-white/5"
-                style={{ background: `${color}`, opacity: 0.14 + reach * 0.26 }}
+                className="relative flex-1 border-b border-white/10"
+                style={{ background: color, opacity: 0.16 + reach * 0.24 }}
               >
-                <span className="absolute left-3 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                <span className="absolute left-3 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   {b.pct}% depth · {b.reached}% reached
                 </span>
               </div>
             );
           })}
         </div>
-      </div>
+      </PageCanvas>
     </div>
   );
 }

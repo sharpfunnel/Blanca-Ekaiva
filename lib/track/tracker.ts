@@ -106,8 +106,22 @@ function selectorFor(el: Element | null): string {
 function classifyClick(target: Element): { type: EventType; text: string } {
   const link = target.closest("a") as HTMLAnchorElement | null;
   const btn = target.closest("button");
-  const el = link || btn || target;
-  const text = (el.textContent || "").trim().slice(0, 80);
+  const field = target.closest("input, select, textarea");
+  const el = link || btn || field || target;
+  let text = (el.textContent || "").trim().slice(0, 80);
+  // Form fields have no text — use a human label instead of the React id.
+  if (!text && field) {
+    const labelEl = field.id
+      ? field.ownerDocument.querySelector(`label[for="${field.id}"]`)
+      : null;
+    text =
+      field.getAttribute("aria-label") ||
+      labelEl?.textContent?.trim() ||
+      field.getAttribute("placeholder") ||
+      field.getAttribute("name") ||
+      "Form field";
+    text = text.slice(0, 80);
+  }
   const href = link?.getAttribute("href") || "";
 
   if (/^tel:/i.test(href)) return { type: "PHONE_CLICK", text };
@@ -126,6 +140,16 @@ function classifyClick(target: Element): { type: EventType; text: string } {
 
 export function initTracker() {
   if (typeof window === "undefined" || window.__blancaTrackInit) return;
+
+  // Never record inside an iframe (e.g. the admin heatmap preview) or when the
+  // page is loaded purely as a heatmap backdrop — that would create fake data.
+  try {
+    if (window.top !== window.self) return;
+    if (new URLSearchParams(location.search).get("heatmap") === "1") return;
+  } catch {
+    return; // cross-origin top access means we are framed → skip
+  }
+
   window.__blancaTrackInit = true;
 
   const path = location.pathname + location.hash;

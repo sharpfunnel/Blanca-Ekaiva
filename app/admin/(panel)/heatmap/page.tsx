@@ -31,9 +31,9 @@ const TABS = [
 ];
 
 const DEVICE_WIDTH: Record<Device, number> = {
-  desktop: 720,
-  tablet: 520,
-  mobile: 360,
+  desktop: 1000,
+  tablet: 768,
+  mobile: 390,
 };
 
 const LEGEND = [
