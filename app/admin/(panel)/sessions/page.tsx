@@ -144,6 +144,7 @@ export default function SessionsPage() {
                 <Th>Session</Th>
                 <Th>Visitor</Th>
                 <Th>Location</Th>
+                <Th>IP Address</Th>
                 <Th>Device</Th>
                 <Th>Source</Th>
                 <Th className="text-right">Pages</Th>
@@ -181,6 +182,7 @@ export default function SessionsPage() {
                         {s.city}
                       </span>
                     </Td>
+                    <Td className="tabular-nums">{s.ip}</Td>
                     <Td>
                       <span className="flex items-center gap-1.5">
                         <DeviceIcon className="size-3.5 text-admin-muted" />
