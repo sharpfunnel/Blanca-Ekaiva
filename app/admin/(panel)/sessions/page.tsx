@@ -17,7 +17,12 @@ import {
 } from "lucide-react";
 import { getSessions, getSessionStats, queryKeys } from "@/lib/admin/api";
 import type { DeviceType, SessionRow } from "@/lib/admin/types";
-import { formatDuration, formatPercent, timeAgo } from "@/lib/admin/format";
+import {
+  formatDuration,
+  formatPercent,
+  formatRawParams,
+  timeAgo,
+} from "@/lib/admin/format";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
 import { Card } from "@/components/admin/ui/Card";
 import { MiniStat, MiniStatSkeleton } from "@/components/admin/ui/MiniStat";
@@ -147,6 +152,8 @@ export default function SessionsPage() {
                 <Th>IP Address</Th>
                 <Th>Device</Th>
                 <Th>Source</Th>
+                <Th>Campaign / UTM</Th>
+                <Th>Params</Th>
                 <Th className="text-right">Pages</Th>
                 <Th className="text-right">Duration</Th>
                 <Th className="text-right">Scroll</Th>
@@ -190,6 +197,29 @@ export default function SessionsPage() {
                       </span>
                     </Td>
                     <Td>{s.source}</Td>
+                    <Td>
+                      {s.utmCampaign || s.utmSource ? (
+                        <div className="leading-tight">
+                          <div className="text-admin-fg">
+                            {s.utmCampaign || "—"}
+                          </div>
+                          {s.utmSource || s.utmMedium ? (
+                            <div className="text-[11px] text-admin-muted">
+                              {s.utmSource}
+                              {s.utmMedium ? `/${s.utmMedium}` : ""}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-admin-muted">—</span>
+                      )}
+                    </Td>
+                    <Td
+                      className="text-admin-muted"
+                      title={formatRawParams(s.rawParams)?.full}
+                    >
+                      {formatRawParams(s.rawParams)?.preview ?? "—"}
+                    </Td>
                     <Td className="text-right tabular-nums">{s.pageViews}</Td>
                     <Td className="text-right tabular-nums">
                       {formatDuration(s.durationMs)}

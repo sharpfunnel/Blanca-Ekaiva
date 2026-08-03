@@ -32,12 +32,15 @@ export function Th({
 export function Td({
   children,
   className,
+  title,
 }: {
   children?: React.ReactNode;
   className?: string;
+  title?: string;
 }) {
   return (
     <td
+      title={title}
       className={cn(
         "whitespace-nowrap border-b border-admin-border/60 px-4 py-2.5 text-admin-fg-2",
         className

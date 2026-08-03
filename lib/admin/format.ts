@@ -70,3 +70,16 @@ export function formatDateTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+/** Raw acquisition params → a short count + the full list for a title tooltip. */
+export function formatRawParams(
+  raw: Record<string, string> | null | undefined
+): { preview: string; full: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const entries = Object.entries(raw);
+  if (entries.length === 0) return null;
+  return {
+    preview: `${entries.length} param${entries.length === 1 ? "" : "s"}`,
+    full: entries.map(([k, v]) => `${k}=${v}`).join("\n"),
+  };
+}

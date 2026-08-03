@@ -138,6 +138,66 @@ function classifyClick(target: Element): { type: EventType; text: string } {
   return { type: "CLICK", text };
 }
 
+interface EntryMeta {
+  referrer: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmTerm: string;
+  utmContent: string;
+  gclid: string;
+  fbclid: string;
+  msclkid: string;
+  placement: string;
+  metaCampaignId: string;
+  metaAdsetId: string;
+  metaAdId: string;
+  /** Every query param on the landing URL, verbatim — a catch-all so no
+   *  acquisition signal is lost even if it isn't one of the named fields. */
+  rawParams: Record<string, string>;
+}
+
+const ENTRY_META_KEY = "blanca_smeta";
+
+/**
+ * Acquisition params, captured ONCE per session and cached in sessionStorage.
+ * Reading once (not per pageview) means a visitor who lands with UTM params and
+ * then clicks to a query-less internal page keeps their original attribution.
+ */
+function getEntryMeta(): EntryMeta {
+  try {
+    const existing = sessionStorage.getItem(ENTRY_META_KEY);
+    if (existing) return JSON.parse(existing) as EntryMeta;
+  } catch {
+    // storage blocked (private mode / in-app webview) → capture without caching
+  }
+
+  const p = new URLSearchParams(location.search);
+  const meta: EntryMeta = {
+    referrer: document.referrer || "",
+    utmSource: p.get("utm_source") || "",
+    utmMedium: p.get("utm_medium") || "",
+    utmCampaign: p.get("utm_campaign") || "",
+    utmTerm: p.get("utm_term") || "",
+    utmContent: p.get("utm_content") || "",
+    gclid: p.get("gclid") || "",
+    fbclid: p.get("fbclid") || "",
+    msclkid: p.get("msclkid") || "",
+    placement: p.get("placement") || "",
+    metaCampaignId: p.get("campaign_id") || "",
+    metaAdsetId: p.get("adset_id") || "",
+    metaAdId: p.get("ad_id") || "",
+    rawParams: Object.fromEntries(p.entries()),
+  };
+
+  try {
+    sessionStorage.setItem(ENTRY_META_KEY, JSON.stringify(meta));
+  } catch {
+    /* ignore storage failures */
+  }
+  return meta;
+}
+
 export function initTracker() {
   if (typeof window === "undefined" || window.__blancaTrackInit) return;
 
@@ -156,8 +216,6 @@ export function initTracker() {
   const { id: visitorId, returning } = getVisitorId();
   const sessionId = getSessionId();
   window.__blancaTrack = { sessionId, visitorId };
-
-  const params = new URLSearchParams(location.search);
 
   /**
    * `unload = false` (in-session): a plain fetch with NO keepalive, so there is
@@ -193,11 +251,12 @@ export function initTracker() {
   };
 
   // ── Session init ─────────────────────────────────────────────────────────
+  const entry = getEntryMeta();
   post("/api/track/session", {
     sessionId,
     visitorId,
     returning,
-    referrer: document.referrer || "",
+    referrer: entry.referrer,
     landingPage: path,
     language: navigator.language,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -205,13 +264,19 @@ export function initTracker() {
     screenH: screen.height,
     viewportW: innerWidth,
     viewportH: innerHeight,
-    utmSource: params.get("utm_source") || "",
-    utmMedium: params.get("utm_medium") || "",
-    utmCampaign: params.get("utm_campaign") || "",
-    utmTerm: params.get("utm_term") || "",
-    utmContent: params.get("utm_content") || "",
-    gclid: params.get("gclid") || "",
-    fbclid: params.get("fbclid") || "",
+    utmSource: entry.utmSource,
+    utmMedium: entry.utmMedium,
+    utmCampaign: entry.utmCampaign,
+    utmTerm: entry.utmTerm,
+    utmContent: entry.utmContent,
+    gclid: entry.gclid,
+    fbclid: entry.fbclid,
+    msclkid: entry.msclkid,
+    placement: entry.placement,
+    metaCampaignId: entry.metaCampaignId,
+    metaAdsetId: entry.metaAdsetId,
+    metaAdId: entry.metaAdId,
+    rawParams: entry.rawParams,
   });
 
   // ── Event batching ───────────────────────────────────────────────────────

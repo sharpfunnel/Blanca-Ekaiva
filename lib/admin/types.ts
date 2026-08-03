@@ -76,6 +76,10 @@ export interface Lead {
   utmSource: string;
   utmMedium: string;
   utmCampaign: string;
+  utmContent: string;
+  utmTerm: string;
+  placement: string;
+  rawParams: Record<string, string> | null;
   device: DeviceType;
   browser: string;
   os: string;
@@ -123,6 +127,17 @@ export interface SessionRow {
   referrer: string;
   source: string;
   campaign: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  utmContent: string;
+  utmTerm: string;
+  placement: string;
+  gclid: string;
+  fbclid: string;
+  msclkid: string;
+  metaCampaignId: string;
+  rawParams: Record<string, string> | null;
   landingPage: string;
   currentPage: string;
   pageViews: number;

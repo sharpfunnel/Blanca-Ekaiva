@@ -132,9 +132,19 @@ model Session {
   utmCampaign   String?
   utmTerm       String?
   utmContent    String?
-  landingPage   String?
-  exitPage      String?
-  currentPage   String?
+  // Ad-platform click IDs + Meta ad-hierarchy params (when tagging own ads)
+  gclid          String? // Google Ads
+  fbclid         String? // Meta
+  msclkid        String? // Microsoft Ads
+  placement      String?
+  metaCampaignId String?
+  metaAdsetId    String?
+  metaAdId       String?
+  // Catch-all: every query param on the landing URL, verbatim, as JSON
+  rawParams   Json?
+  landingPage String?
+  exitPage    String?
+  currentPage String?
 
   // Engagement counters (denormalized; updated as events arrive)
   pageViews     Int     @default(0)
@@ -158,6 +168,8 @@ model Session {
   @@index([country])
   @@index([device])
   @@index([trafficSource])
+  @@index([utmSource, utmMedium, utmCampaign])
+  @@index([metaCampaignId])
 }
 
 model PageViewRec {

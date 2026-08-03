@@ -183,7 +183,18 @@ export default function LeadsPage() {
                   <Td>{l.interest}</Td>
                   <Td>{l.budget}</Td>
                   <Td>{l.city}</Td>
-                  <Td>{l.source}</Td>
+                  <Td>
+                    <div className="leading-tight">
+                      <div className="text-admin-fg">{l.source}</div>
+                      {l.utmSource || l.utmCampaign ? (
+                        <div className="text-[11px] text-admin-muted">
+                          {l.utmSource}
+                          {l.utmMedium ? `/${l.utmMedium}` : ""}
+                          {l.utmCampaign ? ` · ${l.utmCampaign}` : ""}
+                        </div>
+                      ) : null}
+                    </div>
+                  </Td>
                   <Td>{l.device}</Td>
                   <Td>
                     <LeadStatusBadge status={l.status} />

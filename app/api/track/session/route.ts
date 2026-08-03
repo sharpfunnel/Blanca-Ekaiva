@@ -63,6 +63,19 @@ export async function POST(req: Request) {
         utmCampaign: b.utmCampaign || null,
         utmTerm: b.utmTerm || null,
         utmContent: b.utmContent || null,
+        gclid: b.gclid || null,
+        fbclid: b.fbclid || null,
+        msclkid: b.msclkid || null,
+        placement: b.placement || null,
+        metaCampaignId: b.metaCampaignId || null,
+        metaAdsetId: b.metaAdsetId || null,
+        metaAdId: b.metaAdId || null,
+        // Store the raw params only when there are some — never a bare `{}`.
+        rawParams:
+          b.rawParams && Object.keys(b.rawParams).length
+            ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (b.rawParams as any)
+            : undefined,
         landingPage: b.landingPage || "/",
         currentPage: b.landingPage || "/",
       },

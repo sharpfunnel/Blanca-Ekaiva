@@ -55,6 +55,8 @@ export function LeadDrawer({
   lead: Lead | null;
   onClose: () => void;
 }) {
+  const rawEntries = lead ? Object.entries(lead.rawParams ?? {}) : [];
+
   return (
     <AnimatePresence>
       {lead ? (
@@ -123,11 +125,31 @@ export function LeadDrawer({
               <div>
                 <SectionLabel>Acquisition</SectionLabel>
                 <div className="grid grid-cols-2 gap-4">
-                  <Row icon={Radio} label="Source" value={lead.source} />
-                  <Row icon={Globe} label="Campaign" value={lead.campaign} />
-                  <Row icon={Radio} label="UTM Medium" value={lead.utmMedium} />
-                  <Row icon={Radio} label="UTM Source" value={lead.utmSource} />
+                  <Row icon={Radio} label="Source" value={lead.utmSource || lead.source} />
+                  <Row icon={Radio} label="Medium" value={lead.utmMedium || "—"} />
+                  <Row icon={Globe} label="Campaign" value={lead.utmCampaign || lead.campaign} />
+                  <Row icon={Radio} label="Ad (content)" value={lead.utmContent || "—"} />
+                  <Row icon={Radio} label="Adset (term)" value={lead.utmTerm || "—"} />
+                  <Row icon={Radio} label="Placement" value={lead.placement || "—"} />
                 </div>
+
+                {rawEntries.length ? (
+                  <div className="mt-4 rounded-xl border border-admin-border bg-admin-card p-3">
+                    <p className="mb-2 text-[11px] font-medium tracking-wide text-admin-muted uppercase">
+                      Landing URL params ({rawEntries.length})
+                    </p>
+                    <dl className="space-y-1">
+                      {rawEntries.map(([k, v]) => (
+                        <div key={k} className="flex gap-2 text-[11px]">
+                          <dt className="shrink-0 text-admin-muted">{k}</dt>
+                          <dd className="truncate text-admin-fg-2" title={v}>
+                            {v}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ) : null}
               </div>
 
               {/* Tech */}
