@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/admin/ui/Skeleton";
 import { EmptyState } from "@/components/admin/ui/EmptyState";
 import { ExportButton } from "@/components/admin/ui/ExportButton";
 import { LeadDrawer } from "@/components/admin/LeadDrawer";
+import { SendCapiCell } from "@/components/admin/SendCapiModal";
 
 const STATUS_FILTERS: { value: LeadStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All statuses" },
@@ -167,6 +168,7 @@ export default function LeadsPage() {
                 <Th>Source</Th>
                 <Th>Device</Th>
                 <Th>Status</Th>
+                <Th>Meta CAPI</Th>
                 <Th className="text-right">Created</Th>
               </tr>
             </thead>
@@ -198,6 +200,9 @@ export default function LeadsPage() {
                   <Td>{l.device}</Td>
                   <Td>
                     <LeadStatusBadge status={l.status} />
+                  </Td>
+                  <Td>
+                    <SendCapiCell lead={l} />
                   </Td>
                   <Td className="text-right text-admin-muted">
                     {timeAgo(l.createdAt)}

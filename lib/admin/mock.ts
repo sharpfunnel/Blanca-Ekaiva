@@ -110,6 +110,7 @@ function makeLead(i: number): Lead {
     utmContent: chance(0.4) ? "video_ad_1" : "",
     utmTerm: chance(0.4) ? "adset_broad" : "",
     placement: chance(0.4) ? pick(["instagram_reels", "facebook_feed", "search_top"]) : "",
+    metaAdId: chance(0.4) ? String(int(100000, 999999)) : "",
     rawParams: null,
     device,
     browser: pick(BROWSERS),
@@ -117,6 +118,8 @@ function makeLead(i: number): Lead {
     ip: `${int(14, 223)}.${int(0, 255)}.${int(0, 255)}.${int(1, 254)}`,
     status,
     assignedTo: pick(AGENTS),
+    metaCapiSentAt: chance(0.3) ? minutesAgo(int(1, 500)) : null,
+    metaCapiError: null,
     createdAt: minutesAgo(createdMin),
     updatedAt: minutesAgo(Math.max(1, createdMin - int(1, 200))),
     journey: [

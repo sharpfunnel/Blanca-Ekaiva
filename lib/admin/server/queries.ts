@@ -201,6 +201,7 @@ export async function fetchLeads(limit = 300): Promise<Lead[]> {
     utmContent: l.session?.utmContent || "",
     utmTerm: l.session?.utmTerm || "",
     placement: l.session?.placement || "",
+    metaAdId: l.session?.metaAdId || "",
     rawParams: (l.session?.rawParams as Record<string, string> | null) ?? null,
     device: (l.device as Lead["device"]) || "DESKTOP",
     browser: l.browser || "—",
@@ -208,6 +209,8 @@ export async function fetchLeads(limit = 300): Promise<Lead[]> {
     ip: l.ip || "—",
     status: l.status,
     assignedTo: l.assignedTo || "Unassigned",
+    metaCapiSentAt: l.metaCapiSentAt ? l.metaCapiSentAt.toISOString() : null,
+    metaCapiError: l.metaCapiError ?? null,
     createdAt: l.createdAt.toISOString(),
     updatedAt: l.updatedAt.toISOString(),
     journey: (l.session?.events ?? []).map((e) => ({

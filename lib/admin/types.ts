@@ -79,6 +79,7 @@ export interface Lead {
   utmContent: string;
   utmTerm: string;
   placement: string;
+  metaAdId: string;
   rawParams: Record<string, string> | null;
   device: DeviceType;
   browser: string;
@@ -86,6 +87,8 @@ export interface Lead {
   ip: string;
   status: LeadStatus;
   assignedTo: string;
+  metaCapiSentAt: string | null; // ISO
+  metaCapiError: string | null;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   journey: JourneyStep[];
