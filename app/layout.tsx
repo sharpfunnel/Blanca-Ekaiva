@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { MetaPixel } from "@/components/analytics/MetaPixel";
 import { contact, site } from "@/lib/site";
 
 /**
@@ -25,10 +26,9 @@ const inter = Inter({
 /** Set NEXT_PUBLIC_SITE_URL at deploy time so OG/canonical URLs are absolute. */
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-/** Supplied by the client before the campaign goes live. */
-const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
-
-/** Google Tag Manager container. Env var overrides the default at deploy time. */
+/** Google Tag Manager container. Env var overrides the default at deploy time.
+ *  NOTE: if this container also fires a Meta tag, conversions double-count —
+ *  audit it in Tag Manager and remove any Meta Pixel / Lead tags from it. */
 const gtmId = process.env.NEXT_PUBLIC_GTM_ID ?? "GTM-K8NP5ZS2";
 
 const title = `${site.project} — Iconic Offices & Retail Outlets in Turbhe, Navi Mumbai`;
@@ -131,32 +131,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         {children}
 
-        {/* Meta Pixel — only injected once the client provides the Pixel ID. */}
-        {metaPixelId ? (
-          <>
-            <Script id="meta-pixel" strategy="afterInteractive">
-              {`!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window,document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init','${metaPixelId}');fbq('track','PageView');`}
-            </Script>
-            <noscript>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                height="1"
-                width="1"
-                style={{ display: "none" }}
-                alt=""
-                src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-              />
-            </noscript>
-          </>
-        ) : null}
+        {/* Meta Pixel — injects itself only when NEXT_PUBLIC_META_PIXEL_ID is
+            set, skips /admin, and re-fires PageView on client-side nav. */}
+        <MetaPixel />
       </body>
     </html>
   );

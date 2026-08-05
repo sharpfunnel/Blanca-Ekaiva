@@ -69,22 +69,48 @@ render photography is.
 
 All optional; the page works without them.
 
-| Variable                   | Purpose                                                        |
-| -------------------------- | -------------------------------------------------------------- |
-| `NEXT_PUBLIC_SITE_URL`     | Absolute base for canonical + Open Graph URLs. Set on deploy.   |
-| `NEXT_PUBLIC_META_PIXEL_ID`| Meta Pixel. When set, injects the pixel and fires `PageView`.   |
-| `NEXT_PUBLIC_LEAD_WEBHOOK` | POST target for leads (Google Sheet / Zapier / CRM).           |
+| Variable                    | Purpose                                                        |
+| --------------------------- | -------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL`      | Absolute base for canonical + Open Graph URLs. Set on deploy.   |
+| `NEXT_PUBLIC_META_PIXEL_ID` | Browser Pixel. When set, injects the pixel and fires `PageView`.|
+| `META_PIXEL_ID`             | Same id, server side, for the Conversions API.                  |
+| `META_CAPI_ACCESS_TOKEN`    | Events Manager → Settings → Generate access token.              |
+| `META_GRAPH_API_VERSION`    | Optional; defaults to `v21.0`.                                  |
+| `META_CAPI_TEST_EVENT_CODE` | Testing only. **Must be unset in production.**                  |
+| `NEXT_PUBLIC_GTM_ID`        | Google Tag Manager container. Must not contain a Meta tag.      |
+| `NEXT_PUBLIC_LEAD_WEBHOOK`  | POST target for leads (Google Sheet / Zapier / CRM).            |
+
+`NEXT_PUBLIC_*` values are inlined at **build** time — changing one needs a
+redeploy, not a restart.
+
+## Meta conversion tracking
+
+One conversion per lead, counted twice by nothing:
+
+- **Browser** — `components/analytics/MetaPixel.tsx` injects the pixel, skips
+  `/admin`, and re-fires `PageView` on client-side navigation. Every call uses
+  `fbq("trackSingle", …)`, never `track`: plain `track` broadcasts to every
+  pixel initialised on the page, and the GTM container could be running one.
+- **Server** — `lib/meta/capi.ts` POSTs a `Lead` event to the Conversions API
+  from `after()` in the lead route: fire-and-forget, never awaited, never able
+  to fail the lead. The outcome lands on `Lead.metaCapiSentAt` /
+  `metaCapiError`.
+- **Dedup** — both halves use the Lead row's id as the event id (browser
+  `eventID`, server `event_id`), so Meta collapses them into one conversion.
+- **Manual re-send** — the leads table has a per-row Send modal for offline
+  conversions and failed sends. It previews the exact JSON the server will POST
+  (token redacted) and takes only a row id plus the operator's choices; all PII
+  is re-read server-side.
 
 ## Lead flow
 
 On submit the form validates the name and a 10-digit Indian mobile number,
-fires the Meta Pixel `Lead` conversion event, POSTs to `NEXT_PUBLIC_LEAD_WEBHOOK`
-if configured, and hands the lead to WhatsApp with a pre-filled message. An
-inline success state replaces the brief's separate thank-you page.
+creates the lead via `/api/track/lead`, fires the Meta Pixel `Lead` event with
+the returned lead id as its `eventID`, POSTs to `NEXT_PUBLIC_LEAD_WEBHOOK` if
+configured, and redirects to `/thank-you?leadId=…` where budget, email and a
+message can optionally be added to the same row.
 
-The WhatsApp window is opened synchronously inside the submit handler so
-browsers treat it as user-initiated; the webhook POST is fire-and-forget and can
-never block or fail the hand-off.
+The webhook POST is fire-and-forget and can never block or fail the hand-off.
 
 ## Accessibility & motion
 

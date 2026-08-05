@@ -1,7 +1,21 @@
+import { after } from "next/server";
+
+import { sendLeadConversionEvent } from "@/lib/meta/capi";
 import { prisma } from "@/lib/prisma";
 import { geoFromHeaders, parseUA } from "@/lib/track/server";
 
 export const runtime = "nodejs";
+
+/** One cookie out of a raw Cookie header; null when absent. */
+function readCookie(header: string, name: string) {
+  const match = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]).slice(0, 400);
+  } catch {
+    return match[1].slice(0, 400);
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -10,8 +24,12 @@ export async function POST(req: Request) {
       return Response.json({ ok: false, error: "name and phone required" }, { status: 400 });
     }
 
-    const meta = parseUA(req.headers.get("user-agent") || "");
+    const userAgent = req.headers.get("user-agent") || "";
+    const meta = parseUA(userAgent);
     const geo = geoFromHeaders(req.headers);
+    const cookies = req.headers.get("cookie") || "";
+    const fbpCookie = readCookie(cookies, "_fbp");
+    const fbcCookie = readCookie(cookies, "_fbc");
 
     // Pull acquisition context from the visitor's session when we have one.
     const session = b.sessionId
@@ -39,6 +57,12 @@ export async function POST(req: Request) {
         browser: meta.browser || null,
         os: meta.os || null,
         ip: geo.ip || session?.ip || null,
+        userAgent: userAgent || null,
+        // The Pixel writes _fbp/_fbc as first-party cookies on this domain, so
+        // they arrive on this same-origin POST — read them here rather than
+        // letting the browser hand us identifiers it could have made up.
+        fbp: fbpCookie,
+        fbc: fbcCookie,
         status: "NEW",
         activities: {
           create: { type: "created", detail: "Lead submitted via landing page form" },
@@ -58,6 +82,12 @@ export async function POST(req: Request) {
         data: { leadCount: { increment: 1 } },
       });
     }
+
+    // Server half of the Meta conversion, after the response is sent. It uses
+    // the lead id as `event_id`, which the browser Pixel also sends as
+    // `eventID`, so Meta counts one conversion instead of two. Never awaited
+    // and it never throws — a Meta outage must not cost the business a lead.
+    after(() => sendLeadConversionEvent(lead.id));
 
     // Return the lead id so the client can redirect to /thank-you?leadId=… and
     // enrich this same row with optional details.

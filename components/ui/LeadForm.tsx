@@ -5,13 +5,7 @@ import { useId, useState, type FormEvent } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icons";
 import { interestOptions } from "@/lib/content";
-
-declare global {
-  interface Window {
-    /** Meta Pixel, injected in app/layout.tsx once the client supplies an ID. */
-    fbq?: (...args: unknown[]) => void;
-  }
-}
+import { trackPixelLead } from "@/lib/meta/pixel";
 
 /** Optional external webhook (Google Sheet / Zapier / CRM), fire-and-forget. */
 const LEAD_WEBHOOK = process.env.NEXT_PUBLIC_LEAD_WEBHOOK;
@@ -103,14 +97,16 @@ export function LeadForm({
 
       const leadId = data.leadId;
 
-      // Meta Pixel Lead event. eventID = leadId lets a server-side Conversions
-      // API call with the same event_id dedup against this browser event.
-      window.fbq?.(
-        "track",
-        "Lead",
-        { content_name: "Blanca Ekaiva Landing Page", content_category: interest },
-        leadId ? { eventID: leadId } : undefined
-      );
+      // Meta Pixel Lead event. eventID = leadId lets the server-side
+      // Conversions API call with the same event_id dedup against this browser
+      // event, so the pair counts as one conversion. Skipped without an id —
+      // an un-deduplicated Lead is worse than no browser Lead at all.
+      if (leadId) {
+        trackPixelLead(leadId, {
+          content_name: "Blanca Ekaiva Landing Page",
+          content_category: interest,
+        });
+      }
 
       if (LEAD_WEBHOOK) {
         void fetch(LEAD_WEBHOOK, {

@@ -249,15 +249,25 @@ model Lead {
   utmMedium   String?
   utmCampaign String?
 
-  device  DeviceType?
-  browser String?
-  os      String?
-  ip      String?
+  device    DeviceType?
+  browser   String?
+  os        String?
+  ip        String?
+  /** Raw User-Agent header at submit time — sent unhashed to Meta as
+   *  `client_user_agent`; it must pair with the IP that saw the click. */
+  userAgent String?
+
+  // Meta browser cookies, captured client-side when the form is submitted.
+  // Sent to the Conversions API unhashed; the single biggest lever on Event
+  // Match Quality after email/phone.
+  fbp String? // _fbp — browser id set by the Pixel
+  fbc String? // _fbc — click id, format fb.1.<click_ms>.<fbclid>
 
   status     LeadStatus @default(NEW)
   assignedTo String?
 
-  // Meta Conversions API (server-side) send status
+  // Meta Conversions API (server-side) send status. Exactly one is meaningful
+  // at a time: a success sets metaCapiSentAt and clears metaCapiError.
   metaCapiSentAt  DateTime?
   metaCapiEventId String?
   metaCapiError   String?
