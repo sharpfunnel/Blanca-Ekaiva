@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       ? await prisma.session.findUnique({ where: { sessionId: b.sessionId } })
       : null;
 
-    await prisma.lead.create({
+    const lead = await prisma.lead.create({
       data: {
         sessionId: session ? b.sessionId : null,
         visitorId: b.visitorId || session?.visitorId || null,
@@ -59,8 +59,49 @@ export async function POST(req: Request) {
       });
     }
 
-    return Response.json({ ok: true });
+    // Return the lead id so the client can redirect to /thank-you?leadId=… and
+    // enrich this same row with optional details.
+    return Response.json({ ok: true, leadId: lead.id });
   } catch {
     return Response.json({ ok: false }, { status: 200 });
+  }
+}
+
+/** Enriches an existing lead with the optional details added on /thank-you. */
+export async function PATCH(req: Request) {
+  try {
+    const b = await req.json();
+    const leadId = b?.leadId ? String(b.leadId) : "";
+    if (!leadId) {
+      return Response.json({ ok: false, error: "leadId is required" }, { status: 400 });
+    }
+
+    const email = b.email ? String(b.email).slice(0, 160) : "";
+    const budget = b.budget ? String(b.budget).slice(0, 60) : "";
+    const message = b.message ? String(b.message).slice(0, 2000) : "";
+    if (!email && !budget && !message) {
+      return Response.json({ ok: false, error: "Nothing to update" }, { status: 400 });
+    }
+
+    try {
+      await prisma.lead.update({
+        where: { id: leadId },
+        // Only ever write fields that were actually provided.
+        data: {
+          ...(email ? { email } : {}),
+          ...(budget ? { budget } : {}),
+          ...(message ? { message } : {}),
+          activities: {
+            create: { type: "enriched", detail: "Details added on thank-you page" },
+          },
+        },
+      });
+    } catch {
+      return Response.json({ ok: false, error: "Lead not found" }, { status: 404 });
+    }
+
+    return Response.json({ ok: true });
+  } catch {
+    return Response.json({ ok: false }, { status: 400 });
   }
 }

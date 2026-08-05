@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icons";
-import { budgetOptions, interestOptions } from "@/lib/content";
+import { interestOptions } from "@/lib/content";
 
 declare global {
   interface Window {
@@ -12,17 +13,13 @@ declare global {
   }
 }
 
-/**
- * Optional webhook (Google Sheet / Zapier / CRM). When unset the form still
- * works — it hands the lead straight to WhatsApp, which is the destination
- * named in the brief.
- */
+/** Optional external webhook (Google Sheet / Zapier / CRM), fire-and-forget. */
 const LEAD_WEBHOOK = process.env.NEXT_PUBLIC_LEAD_WEBHOOK;
 
 type Variant = "compact" | "full";
 
 interface LeadFormProps {
-  /** `compact` is the floating hero card; `full` adds the budget field. */
+  /** `compact` stacks every field; `full` puts name + phone on one row. */
   variant?: Variant;
   onDark?: boolean;
   className?: string;
@@ -34,35 +31,40 @@ interface Errors {
   phone?: string;
 }
 
+/**
+ * Short landing-page lead form — Name + Phone + Interest only. On submit it
+ * creates the lead and redirects to /thank-you?leadId=…, where the visitor can
+ * optionally add budget, email and a message to the SAME lead. A 3-field form
+ * converts better; the optional details are deferred, not lost.
+ */
 export function LeadForm({
   variant = "compact",
   onDark = false,
   className = "",
   submitLabel,
 }: LeadFormProps) {
+  const router = useRouter();
   const uid = useId();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [interest, setInterest] = useState<string>(interestOptions[0]);
-  const [budget, setBudget] = useState<string>(budgetOptions[0]);
   const [errors, setErrors] = useState<Errors>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isFull = variant === "full";
 
   function validate(): Errors {
     const next: Errors = {};
     if (name.trim().length < 2) next.name = "Please enter your full name.";
-
     // Indian mobile numbers: 10 digits beginning 6-9, ignoring +91 / 0 prefixes.
     const digits = phone.replace(/\D/g, "").replace(/^(91|0)/, "");
     if (!/^[6-9]\d{9}$/.test(digits))
       next.phone = "Enter a valid 10-digit mobile number.";
-
     return next;
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     // Honeypot — bots fill hidden fields, humans never do.
@@ -73,83 +75,71 @@ export function LeadForm({
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
-    const lead = {
-      name: name.trim(),
-      phone: phone.trim(),
-      interest,
-      ...(isFull ? { budget } : {}),
-      project: "Blanca Ekaiva — Turbhe",
-      submittedAt: new Date().toISOString(),
-    };
+    setSubmitting(true);
+    setSubmitError(null);
 
-    // Meta Pixel conversion event required by the campaign brief.
-    window.fbq?.("track", "Lead", {
-      content_name: "Blanca Ekaiva Landing Page",
-      content_category: interest,
-    });
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim();
+    const t = window.__blancaTrack;
 
-    // Optional external webhook (Zapier/CRM/Sheet), fire-and-forget.
-    if (LEAD_WEBHOOK) {
-      void fetch(LEAD_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lead),
-        keepalive: true,
-      }).catch(() => {
-        /* best-effort; the database write below is the source of truth */
-      });
-    }
-
-    // Persist the lead to the analytics database — this is now the source of
-    // truth for every submission (both the hero and the full enquiry form).
     try {
-      const t = window.__blancaTrack;
-      void fetch("/api/track/lead", {
+      const res = await fetch("/api/track/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: lead.name,
-          phone: lead.phone,
-          interest: lead.interest,
-          ...(isFull ? { budget } : {}),
+          name: cleanName,
+          phone: cleanPhone,
+          interest,
           sessionId: t?.sessionId,
           visitorId: t?.visitorId,
         }),
-        keepalive: true,
-      }).catch(() => {});
-    } catch {
-      /* best-effort; never block the confirmation */
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { ok: boolean; leadId?: string; error?: string }
+        | null;
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error ?? "Submission failed. Please try again.");
+      }
+
+      const leadId = data.leadId;
+
+      // Meta Pixel Lead event. eventID = leadId lets a server-side Conversions
+      // API call with the same event_id dedup against this browser event.
+      window.fbq?.(
+        "track",
+        "Lead",
+        { content_name: "Blanca Ekaiva Landing Page", content_category: interest },
+        leadId ? { eventID: leadId } : undefined
+      );
+
+      if (LEAD_WEBHOOK) {
+        void fetch(LEAD_WEBHOOK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: cleanName,
+            phone: cleanPhone,
+            interest,
+            leadId,
+            project: "Blanca Ekaiva — Turbhe",
+          }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+
+      form.reset();
+      router.push(
+        leadId ? `/thank-you?leadId=${encodeURIComponent(leadId)}` : "/thank-you"
+      );
+    } catch (err) {
+      setSubmitError(
+        (err as Error).message || "Something went wrong. Please try again."
+      );
+      setSubmitting(false);
     }
-
-    setSubmitted(true);
   }
 
-  /* ── Success state — replaces the brief's separate thank-you page ─────── */
-  if (submitted) {
-    return (
-      <div
-        className={`rounded-card border p-6 text-center sm:p-8 ${
-          onDark ? "border-white/12 bg-white/5" : "border-line bg-surface"
-        } ${className}`}
-        role="status"
-        aria-live="polite"
-      >
-        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-gold/15 text-gold-dark">
-          <Icon name="check" className="size-7" />
-        </span>
-        <h3
-          className={`mt-5 text-2xl ${onDark ? "text-white" : ""}`}
-        >
-          Thank you, {name.split(" ")[0]}!
-        </h3>
-        <p className={`mt-2 text-base ${onDark ? "text-white/70" : "text-body"}`}>
-          Rahul will call you within 30 minutes with floor plans and pricing.
-        </p>
-      </div>
-    );
-  }
-
-  /* ── Shared field styling ─────────────────────────────────────────────── */
+  /* ── Field styling ────────────────────────────────────────────────────── */
   const fieldBase =
     "w-full rounded-xl border px-4 py-3 text-base outline-none transition-colors duration-200 " +
     (onDark
@@ -206,8 +196,6 @@ export function LeadForm({
             id={`${uid}-phone`}
             name="phone"
             type="tel"
-            // `tel` gives the phone keypad rather than the plain number pad,
-            // so a pasted or typed +91 prefix is still enterable.
             inputMode="tel"
             autoComplete="tel"
             placeholder="10-digit mobile number"
@@ -224,8 +212,8 @@ export function LeadForm({
           ) : null}
         </div>
 
-        {/* Interest */}
-        <div className={isFull ? "" : "sm:col-span-2"}>
+        {/* Interest — a single tap, kept on-page as a key qualifier */}
+        <div className="sm:col-span-2">
           <label htmlFor={`${uid}-interest`} className={labelBase}>
             Interested In
           </label>
@@ -243,33 +231,24 @@ export function LeadForm({
             ))}
           </select>
         </div>
-
-        {/* Budget — full variant only, per the brief's Section 8 fields */}
-        {isFull ? (
-          <div>
-            <label htmlFor={`${uid}-budget`} className={labelBase}>
-              Budget Range
-            </label>
-            <select
-              id={`${uid}-budget`}
-              name="budget"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              className={`${fieldBase} cursor-pointer`}
-            >
-              {budgetOptions.map((option) => (
-                <option key={option} value={option} className="bg-white text-ink">
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
       </div>
 
-      <Button type="submit" size="lg" className="mt-5 w-full">
-        {submitLabel ?? (isFull ? "Get Details" : "Get Price & Floor Plan")}
-        <Icon name="arrowRight" className="size-5" />
+      {submitError ? (
+        <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+          {submitError}
+        </p>
+      ) : null}
+
+      <Button
+        type="submit"
+        size="lg"
+        className="mt-5 w-full"
+        disabled={submitting}
+      >
+        {submitting
+          ? "Submitting…"
+          : (submitLabel ?? (isFull ? "Get Details" : "Get Price & Floor Plan"))}
+        {!submitting ? <Icon name="arrowRight" className="size-5" /> : null}
       </Button>
 
       <p
