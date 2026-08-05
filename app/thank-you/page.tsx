@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Wordmark } from "@/components/layout/Wordmark";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icons";
@@ -56,13 +57,13 @@ export default async function ThankYouPage({
         {resolvedLeadId ? <ThankYouOptionalForm leadId={resolvedLeadId} /> : null}
 
         <div className="mt-10">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-ink"
           >
             <Icon name="arrowRight" className="size-4 rotate-180" />
             Back to the website
-          </a>
+          </Link>
         </div>
       </div>
     </main>
