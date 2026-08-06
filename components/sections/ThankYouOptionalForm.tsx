@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icons";
 import { budgetOptions } from "@/lib/content";
+import { isValidEmail } from "@/lib/validation";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -22,6 +23,13 @@ export function ThankYouOptionalForm({ leadId }: { leadId: string }) {
     const budget = String(data.get("budget") || "").trim();
     const message = String(data.get("message") || "").trim();
     if (!email && !budget && !message) return; // require at least one field
+
+    // Validate email only when the visitor actually filled it in.
+    if (email && !isValidEmail(email)) {
+      setStatus("error");
+      setError("Please enter a valid email address.");
+      return;
+    }
 
     setStatus("submitting");
     setError(null);

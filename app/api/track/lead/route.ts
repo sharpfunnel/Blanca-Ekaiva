@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { sendLeadConversionEvent } from "@/lib/meta/capi";
 import { prisma } from "@/lib/prisma";
 import { geoFromHeaders, parseUA } from "@/lib/track/server";
+import { isValidEmail, isValidName, isValidPhone } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -20,8 +21,21 @@ function readCookie(header: string, name: string) {
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    if (!b?.name || !b?.phone) {
+    // Never trust the client — re-validate at the boundary that writes the DB.
+    const name = b?.name ? String(b.name).trim() : "";
+    const phone = b?.phone ? String(b.phone).trim() : "";
+    const emailIn = b?.email ? String(b.email).trim() : "";
+    if (!name || !phone) {
       return Response.json({ ok: false, error: "name and phone required" }, { status: 400 });
+    }
+    if (!isValidName(name)) {
+      return Response.json({ ok: false, error: "Please enter a valid name" }, { status: 400 });
+    }
+    if (!isValidPhone(phone)) {
+      return Response.json({ ok: false, error: "Please enter a valid phone number" }, { status: 400 });
+    }
+    if (emailIn && !isValidEmail(emailIn)) {
+      return Response.json({ ok: false, error: "Please enter a valid email address" }, { status: 400 });
     }
 
     const userAgent = req.headers.get("user-agent") || "";
@@ -111,6 +125,9 @@ export async function PATCH(req: Request) {
     const message = b.message ? String(b.message).slice(0, 2000) : "";
     if (!email && !budget && !message) {
       return Response.json({ ok: false, error: "Nothing to update" }, { status: 400 });
+    }
+    if (email && !isValidEmail(email)) {
+      return Response.json({ ok: false, error: "Please enter a valid email address" }, { status: 400 });
     }
 
     try {

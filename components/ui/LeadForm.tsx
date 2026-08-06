@@ -6,6 +6,12 @@ import { Button } from "./Button";
 import { Icon } from "./Icons";
 import { interestOptions } from "@/lib/content";
 import { trackPixelLead } from "@/lib/meta/pixel";
+import {
+  isValidName,
+  isValidPhone,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+} from "@/lib/validation";
 
 /** Optional external webhook (Google Sheet / Zapier / CRM), fire-and-forget. */
 const LEAD_WEBHOOK = process.env.NEXT_PUBLIC_LEAD_WEBHOOK;
@@ -50,10 +56,8 @@ export function LeadForm({
 
   function validate(): Errors {
     const next: Errors = {};
-    if (name.trim().length < 2) next.name = "Please enter your full name.";
-    // Indian mobile numbers: 10 digits beginning 6-9, ignoring +91 / 0 prefixes.
-    const digits = phone.replace(/\D/g, "").replace(/^(91|0)/, "");
-    if (!/^[6-9]\d{9}$/.test(digits))
+    if (!isValidName(name)) next.name = "Please enter your full name.";
+    if (!isValidPhone(phone))
       next.phone = "Enter a valid 10-digit mobile number.";
     return next;
   }
@@ -168,10 +172,13 @@ export function LeadForm({
             id={`${uid}-name`}
             name="name"
             type="text"
+            required
+            minLength={2}
             autoComplete="name"
             placeholder="Your full name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            // Layer 1: strip disallowed characters as the user types.
+            onChange={(e) => setName(sanitizeNameInput(e.target.value))}
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? `${uid}-name-error` : undefined}
             className={fieldBase}
@@ -192,11 +199,16 @@ export function LeadForm({
             id={`${uid}-phone`}
             name="phone"
             type="tel"
+            required
+            maxLength={14}
+            // `tel` gives the phone keypad rather than the plain number pad,
+            // so a pasted or typed +91 prefix is still enterable.
             inputMode="tel"
             autoComplete="tel"
             placeholder="10-digit mobile number"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            // Layer 1: keep phone chars only, cap the digit count.
+            onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
             aria-invalid={Boolean(errors.phone)}
             aria-describedby={errors.phone ? `${uid}-phone-error` : undefined}
             className={fieldBase}
