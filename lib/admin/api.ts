@@ -18,7 +18,15 @@ import {
   mockTechStack,
 } from "./mock";
 import type {
+  CampaignDetail,
+  CampaignRow,
+  CapiDelivery,
+  CtaStat,
   DateRange,
+  ErrorRow,
+  MetaAccountStatus,
+  FormStat,
+  FunnelsData,
   HeatPoint,
   HoverElement,
   Lead,
@@ -28,7 +36,11 @@ import type {
   SessionRow,
   SessionStats,
   TechStackData,
+  VitalStat,
 } from "./types";
+
+/** Window selector shared by the engagement dashboards. */
+export type EngagementRange = "7d" | "30d" | "90d" | "all";
 
 // Live: the admin now reads real data captured from landing-page visitors.
 // (Set to true only to preview the panel with sample data.)
@@ -43,6 +55,15 @@ export const queryKeys = {
   sessionStats: () => ["admin", "sessionStats"] as const,
   heatmap: () => ["admin", "heatmap"] as const,
   techStack: () => ["admin", "techStack"] as const,
+  funnels: (range: EngagementRange) => ["admin", "funnels", range] as const,
+  ctas: (range: EngagementRange) => ["admin", "ctas", range] as const,
+  forms: (range: EngagementRange) => ["admin", "forms", range] as const,
+  performance: (range: EngagementRange) => ["admin", "performance", range] as const,
+  errors: (range: EngagementRange) => ["admin", "errors", range] as const,
+  campaigns: (range: EngagementRange) => ["admin", "campaigns", range] as const,
+  campaign: (id: string) => ["admin", "campaign", id] as const,
+  capiLog: () => ["admin", "capiLog"] as const,
+  live: () => ["admin", "live"] as const,
 };
 
 export async function getOverview(range: DateRange): Promise<OverviewData> {
@@ -109,6 +130,65 @@ export async function getTechStack(): Promise<TechStackData> {
     return mockTechStack();
   }
   return fetchJson(`/api/admin/tech-stack`);
+}
+
+/* ── Engagement dashboards ────────────────────────────────────────────────── */
+
+export async function getFunnels(range: EngagementRange): Promise<FunnelsData> {
+  return fetchJson(`/api/admin/funnels?range=${range}`);
+}
+
+export async function getCtas(range: EngagementRange): Promise<CtaStat[]> {
+  return fetchJson(`/api/admin/ctas?range=${range}`);
+}
+
+export async function getForms(range: EngagementRange): Promise<FormStat[]> {
+  return fetchJson(`/api/admin/forms?range=${range}`);
+}
+
+export async function getPerformance(
+  range: EngagementRange
+): Promise<VitalStat[]> {
+  return fetchJson(`/api/admin/performance?range=${range}`);
+}
+
+export async function getErrors(range: EngagementRange): Promise<ErrorRow[]> {
+  return fetchJson(`/api/admin/errors?range=${range}`);
+}
+
+/** Sessions active in the last five minutes. */
+export async function getLiveCount(): Promise<{ count: number }> {
+  return fetchJson(`/api/admin/live`);
+}
+
+/* ── Meta Ads ─────────────────────────────────────────────────────────────── */
+
+export async function getCampaigns(
+  range: EngagementRange
+): Promise<{ account: MetaAccountStatus; campaigns: CampaignRow[] }> {
+  return fetchJson(`/api/admin/campaigns?range=${range}`);
+}
+
+export async function getCampaign(
+  id: string,
+  range: EngagementRange
+): Promise<CampaignDetail> {
+  return fetchJson(
+    `/api/admin/campaigns/${encodeURIComponent(id)}?range=${range}`
+  );
+}
+
+export async function getMetaOverview(): Promise<{
+  account: MetaAccountStatus | null;
+  deliveries: CapiDelivery[];
+}> {
+  return fetchJson(`/api/admin/meta`);
+}
+
+/** Triggers a sync now rather than waiting for the cron. */
+export async function syncMetaNow(): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/admin/meta", { method: "POST" });
+  return res.json();
 }
 
 /** Full rrweb event stream for a session (real session replay). */

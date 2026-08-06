@@ -69,7 +69,11 @@ export function LeadFormSection() {
           <div>
             <Reveal delay={140}>
               <div className="rounded-card border border-line bg-surface-2 p-5 shadow-[0_28px_60px_-40px_rgba(11,11,11,0.4)] sm:p-9 lg:sticky lg:top-28">
-                <LeadForm variant="full" submitLabel="Get Details" />
+                <LeadForm
+                  variant="full"
+                  submitLabel="Get Details"
+                  formId="enquiry-lead-form"
+                />
 
                 <p className="mt-6 border-t border-line pt-5 text-xs leading-relaxed text-muted sm:text-sm">
                   MahaRERA No.{" "}

@@ -49,6 +49,7 @@ export function StickyActions() {
         <div className="flex gap-2.5 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <a
             href={telHref}
+            data-cta-id="sticky-call"
             aria-label={`Call ${contact.name} on ${contact.phoneDisplay}`}
             className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border border-white/25 text-base font-medium text-white active:scale-[0.98]"
           >
@@ -59,6 +60,7 @@ export function StickyActions() {
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
+            data-cta-id="sticky-whatsapp"
             aria-label="Chat with Rahul Thakur on WhatsApp about Blanca Ekaiva"
             className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-[#25D366] text-base font-medium text-white active:scale-[0.98]"
           >
@@ -73,6 +75,7 @@ export function StickyActions() {
         href={whatsappHref}
         target="_blank"
         rel="noopener noreferrer"
+        data-cta-id="floating-whatsapp"
         aria-label="Chat with Rahul Thakur on WhatsApp about Blanca Ekaiva"
         className={`fixed bottom-7 right-7 z-50 hidden items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-base font-medium text-white shadow-lg hover:brightness-105 sm:flex ${transition} ${hiddenPill}`}
         style={{ animation: visible ? "pulse-ring 2.6s infinite" : undefined }}

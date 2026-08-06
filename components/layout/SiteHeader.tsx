@@ -42,19 +42,26 @@ export function SiteHeader() {
           {/* Phone is the highest-intent action, so it stays visible on tablet+ */}
           <a
             href={telHref}
+            data-cta-id="header-call"
             className="hidden items-center gap-2 text-base font-medium text-white transition-colors duration-300 hover:text-gold sm:inline-flex"
           >
             <Icon name="phone" className="size-[18px]" />
             {contact.phoneDisplay}
           </a>
 
-          <Button href="#enquire" size="md" className="hidden md:inline-flex">
+          <Button
+            href="#enquire"
+            size="md"
+            data-cta-id="header-enquire"
+            className="hidden md:inline-flex"
+          >
             Get Price &amp; Floor Plan
           </Button>
 
           {/* Compact icon-only call button below the sm breakpoint */}
           <a
             href={telHref}
+            data-cta-id="header-call-mobile"
             aria-label={`Call ${contact.name} on ${contact.phoneDisplay}`}
             className="inline-flex size-11 items-center justify-center rounded-full bg-gold text-ink transition-transform duration-300 hover:scale-105 sm:hidden"
           >

@@ -100,10 +100,20 @@ export function ContactCard() {
               </ul>
 
               <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row">
-                <Button href="#enquire" size="lg" className="sm:flex-1">
+                <Button
+                  href="#enquire"
+                  size="lg"
+                  data-cta-id="contact-enquire"
+                  className="sm:flex-1"
+                >
                   Request a Callback
                 </Button>
-                <Button href={whatsappHref} variant="onDark" size="lg">
+                <Button
+                  href={whatsappHref}
+                  variant="onDark"
+                  size="lg"
+                  data-cta-id="contact-whatsapp"
+                >
                   <Icon name="whatsapp" className="size-5" />
                   WhatsApp
                 </Button>

@@ -71,6 +71,7 @@ export function ThankYouOptionalForm({ leadId }: { leadId: string }) {
   return (
     <form
       onSubmit={handleSubmit}
+      data-form-id="thank-you-details"
       className="mt-8 rounded-card border border-line bg-surface p-6 text-left sm:p-8"
     >
       <h2 className="text-xl text-ink">Want a more tailored callback?</h2>

@@ -7,9 +7,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   // Pooled connection for the app at runtime (Neon PgBouncer).
-  url = env("DATABASE_URL")
+  url       = env("DATABASE_URL")
   // Direct (non-pooled) connection for migrations / db push. Falls back to
   // DATABASE_URL when DIRECT_URL is not set.
   directUrl = env("DIRECT_URL")
@@ -72,6 +72,32 @@ enum EventType {
   OUTBOUND_LINK
   HOVER
   LEAD
+  // Frustration signals — a click that produced no DOM change (DEAD_CLICK) or
+  // three-plus clicks on the same element inside a second (RAGE_CLICK above).
+  DEAD_CLICK
+  // CTA lifecycle, keyed by `data-cta-id`. CTA_CLICK above completes the set.
+  CTA_VIEW
+  CTA_HOVER
+  // Form lifecycle beyond open/start/submit, keyed by `data-form-id`.
+  FIELD_FOCUS
+  FIELD_COMPLETE
+  VALIDATION_ERROR
+  FORM_ABANDON
+}
+
+/**
+ * Google's Core Web Vitals thresholds.
+ */
+enum VitalRating {
+  GOOD
+  NEEDS_IMPROVEMENT
+  POOR
+}
+
+enum ErrorKind {
+  JS_ERROR
+  UNHANDLED_REJECTION
+  RESOURCE_ERROR
 }
 
 model Visitor {
@@ -123,15 +149,15 @@ model Session {
   viewportH      Int?
 
   // Acquisition
-  referrer      String?
-  trafficSource String? // google, facebook, instagram, direct, whatsapp...
-  trafficMedium String? // organic, cpc, referral, social, email...
-  campaign      String?
-  utmSource     String?
-  utmMedium     String?
-  utmCampaign   String?
-  utmTerm       String?
-  utmContent    String?
+  referrer       String?
+  trafficSource  String? // google, facebook, instagram, direct, whatsapp...
+  trafficMedium  String? // organic, cpc, referral, social, email...
+  campaign       String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  utmTerm        String?
+  utmContent     String?
   // Ad-platform click IDs + Meta ad-hierarchy params (when tagging own ads)
   gclid          String? // Google Ads
   fbclid         String? // Meta
@@ -141,10 +167,10 @@ model Session {
   metaAdsetId    String?
   metaAdId       String?
   // Catch-all: every query param on the landing URL, verbatim, as JSON
-  rawParams   Json?
-  landingPage String?
-  exitPage    String?
-  currentPage String?
+  rawParams      Json?
+  landingPage    String?
+  exitPage       String?
+  currentPage    String?
 
   // Engagement counters (denormalized; updated as events arrive)
   pageViews     Int     @default(0)
@@ -161,6 +187,8 @@ model Session {
   events       Event[]
   pages        PageViewRec[]
   replayEvents ReplayEvent[]
+  vitals       PerformanceMetric[]
+  errors       ErrorEvent[]
   lead         Lead?
 
   @@index([startedAt])
@@ -205,6 +233,12 @@ model Event {
   vpH       Int?
   scrollPct Int?
   device    DeviceType?
+  // Stable keys from markup, NOT derived from the DOM: tagging an element
+  // `data-cta-id="hero-call"` is the whole convention for tracking it, so these
+  // survive a class rename or a redesign in a way `selector` never can.
+  ctaId     String?
+  formId    String?
+  fieldName String?
   meta      Json?
   createdAt DateTime    @default(now())
 
@@ -213,6 +247,48 @@ model Event {
   @@index([path])
   @@index([createdAt])
   @@index([type, path])
+  @@index([ctaId])
+  @@index([formId])
+}
+
+// Core Web Vitals, one row per metric per page load (web-vitals reports each
+// metric once, at its final value).
+model PerformanceMetric {
+  id        String      @id @default(cuid())
+  session   Session     @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId String
+  name      String // LCP | INP | CLS | FCP | TTFB
+  value     Float
+  rating    VitalRating
+  path      String?
+  device    DeviceType?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+  @@index([name])
+  @@index([createdAt])
+}
+
+// Client-side errors: thrown exceptions, unhandled rejections, broken assets.
+model ErrorEvent {
+  id        String      @id @default(cuid())
+  session   Session     @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  sessionId String
+  kind      ErrorKind
+  message   String
+  source    String? // script URL, or the asset URL for RESOURCE_ERROR
+  lineNo    Int?
+  colNo     Int?
+  stack     String?
+  path      String?
+  browser   String?
+  os        String?
+  device    DeviceType?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+  @@index([kind])
+  @@index([createdAt])
 }
 
 // rrweb event chunks for full session replay, batched to keep rows sane.
@@ -253,8 +329,10 @@ model Lead {
   browser   String?
   os        String?
   ip        String?
-  /** Raw User-Agent header at submit time — sent unhashed to Meta as
-   *  `client_user_agent`; it must pair with the IP that saw the click. */
+  /**
+   * Raw User-Agent header at submit time — sent unhashed to Meta as
+   * `client_user_agent`; it must pair with the IP that saw the click.
+   */
   userAgent String?
 
   // Meta browser cookies, captured client-side when the form is submitted.
@@ -303,4 +381,127 @@ model LeadActivity {
   createdAt DateTime @default(now())
 
   @@index([leadId])
+}
+
+/**
+ * ── Meta Ads ───────────────────────────────────────────────────────────────
+ * Synced from the Graph API by lib/meta/sync.ts. Nothing here is written by
+ * the site itself; it is a local mirror of what Meta reports, joined against
+ * our own sessions/leads by campaign/adset/ad id so spend can sit next to the
+ * conversions it actually produced.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+
+model MetaAdAccount {
+  id        String  @id @default(cuid())
+  /**
+   * Meta's `act_<id>` account id, without the `act_` prefix.
+   */
+  accountId String  @unique
+  name      String?
+  currency  String? // account currency — spend is reported in it, not INR
+  timezone  String?
+
+  /**
+   * Long-lived user token. Server-only; never leaves the API layer.
+   */
+  accessToken    String?
+  tokenExpiresAt DateTime?
+
+  lastSyncedAt  DateTime?
+  lastSyncError String?
+
+  campaigns MetaCampaign[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model MetaCampaign {
+  id             String        @id @default(cuid())
+  account        MetaAdAccount @relation(fields: [accountId], references: [accountId], onDelete: Cascade)
+  accountId      String
+  /**
+   * Meta's campaign id — also what lands in Session.metaCampaignId.
+   */
+  campaignId     String        @unique
+  name           String
+  status         String?
+  objective      String?
+  dailyBudget    Float?
+  lifetimeBudget Float?
+  startTime      DateTime?
+  stopTime       DateTime?
+
+  adSets    MetaAdSet[]
+  insights  MetaInsight[]
+  updatedAt DateTime      @updatedAt
+
+  @@index([accountId])
+}
+
+model MetaAdSet {
+  id               String       @id @default(cuid())
+  campaign         MetaCampaign @relation(fields: [campaignId], references: [campaignId], onDelete: Cascade)
+  campaignId       String
+  adSetId          String       @unique
+  name             String
+  status           String?
+  dailyBudget      Float?
+  lifetimeBudget   Float?
+  optimizationGoal String?
+
+  ads       MetaAd[]
+  updatedAt DateTime @updatedAt
+
+  @@index([campaignId])
+}
+
+model MetaAd {
+  id               String    @id @default(cuid())
+  adSet            MetaAdSet @relation(fields: [adSetId], references: [adSetId], onDelete: Cascade)
+  adSetId          String
+  adId             String    @unique
+  name             String
+  status           String?
+  creativeThumbUrl String?
+
+  updatedAt DateTime @updatedAt
+
+  @@index([adSetId])
+}
+
+/**
+ * One row per entity per day. `level` + `entityId` rather than three nullable
+ * FKs, so campaign/adset/ad insights share one table and one query path.
+ */
+model MetaInsight {
+  id       String   @id @default(cuid())
+  level    String // campaign | adset | ad
+  entityId String
+  date     DateTime @db.Date
+
+  /**
+   * Set only for level="campaign", so campaign pages can join without a lookup.
+   */
+  campaign   MetaCampaign? @relation(fields: [campaignId], references: [campaignId], onDelete: Cascade)
+  campaignId String?
+
+  spend         Float @default(0)
+  impressions   Int   @default(0)
+  clicks        Int   @default(0)
+  reach         Int   @default(0)
+  ctr           Float @default(0)
+  cpc           Float @default(0)
+  cpm           Float @default(0)
+  /**
+   * Meta's attributed conversions for the account's chosen result type.
+   */
+  results       Int   @default(0)
+  costPerResult Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([level, entityId, date])
+  @@index([campaignId])
+  @@index([date])
 }

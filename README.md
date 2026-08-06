@@ -79,6 +79,8 @@ All optional; the page works without them.
 | `META_CAPI_TEST_EVENT_CODE` | Testing only. **Must be unset in production.**                  |
 | `NEXT_PUBLIC_GTM_ID`        | Google Tag Manager container. Must not contain a Meta tag.      |
 | `NEXT_PUBLIC_LEAD_WEBHOOK`  | POST target for leads (Google Sheet / Zapier / CRM).            |
+| `META_APP_ID` / `META_APP_SECRET` | Meta app with `ads_read`, for the Ads sync OAuth flow.    |
+| `CRON_SECRET`               | Guards `/api/cron/meta-sync`. Unset ⇒ the route refuses to run. |
 
 `NEXT_PUBLIC_*` values are inlined at **build** time — changing one needs a
 redeploy, not a restart.
@@ -101,6 +103,70 @@ One conversion per lead, counted twice by nothing:
   conversions and failed sends. It previews the exact JSON the server will POST
   (token redacted) and takes only a row id plus the operator's choices; all PII
   is re-read server-side.
+
+## Admin panel
+
+`/admin` is a first-party analytics panel and lead CRM — no third-party
+analytics SaaS. Everything is captured by `lib/track/` and stored in our own
+Postgres. Pages are client components reading `/api/admin/*`; the Edge proxy
+(`proxy.ts`) guards every `/admin/**` route on a signed session cookie.
+
+| Route | What it answers |
+|---|---|
+| `/admin` | The daily check: stat tiles, visitors chart, funnel, sources, world map, recent leads |
+| `/admin/leads` | The CRM — every enquiry, filterable, with a behavioural detail drawer |
+| `/admin/sessions` | Every visit with device/geo/engagement context and a replay button |
+| `/admin/campaigns` | Meta Ads spend joined against the sessions and leads it produced |
+| `/admin/funnels` | Page View → Scroll → CTA → Form Start → Lead, all traffic vs Meta-ads-only |
+| `/admin/ctas` | Per-`data-cta-id` views / hovers / clicks / CTR |
+| `/admin/forms` | Per-`data-form-id` views / starts / completions / abandons |
+| `/admin/heatmap` | Click, hover and scroll heatmaps over the live page |
+| `/admin/performance` | Core Web Vitals distribution from real visitors |
+| `/admin/errors` | Client-side errors, grouped |
+| `/admin/tech-stack` | Devices, browsers, OS, resolutions, networks |
+| `/admin/meta-capi` | Dry-run CAPI payload composer + the delivery log |
+| `/admin/reports` | Date-ranged CSV / XLSX / PDF exports |
+
+### Tracking conventions
+
+Two markup attributes are the whole tracking API for new elements — no
+JavaScript change is needed to track one:
+
+- **`data-cta-id="hero-call"`** on any button or link → view, hover and click
+  are recorded against that stable id, and it appears on `/admin/ctas`.
+- **`data-form-id="enquiry-lead-form"`** on a `<form>` → view, start, per-field
+  focus/complete/validation-error, submit and abandon. Only field *names* are
+  ever recorded; never what anyone typed.
+
+Collectors live in `lib/track/collectors/` (CTA, forms, mouse, vitals, errors)
+and share one batched queue that flushes on a timer, at 20 events, or on
+tab-hide via `sendBeacon`.
+
+### The world map is real
+
+`lib/admin/worldMapPaths.ts` is **generated**, not hand-drawn: the public-domain
+Natural Earth 110m dataset projected through `d3-geo`'s
+`geoEquirectangular().fitExtent()` and emitted as plain SVG path data plus
+per-country centroids. `d3-geo`, `topojson-client`, `world-atlas` and
+`i18n-iso-countries` are installed with `npm install --no-save` for that one run
+and removed straight after, so the app ships no map library — just static path
+data. Regenerate with:
+
+```bash
+npm install --no-save world-atlas d3-geo topojson-client i18n-iso-countries
+node scripts/generate-world-map.mjs
+npm install --no-save     # drop them again
+```
+
+### Meta Ads sync
+
+Connect an ad account from `/admin/campaigns` (OAuth, `ads_read` only). The
+long-lived token is stored on `MetaAdAccount` and refreshed when it is within a
+week of expiring. Schedule the sync by hitting:
+
+```
+GET /api/cron/meta-sync   Authorization: Bearer $CRON_SECRET
+```
 
 ## Lead flow
 

@@ -43,8 +43,13 @@ export function AdminNavbar() {
           </span>
         </Link>
 
-        {/* Center — navigation */}
-        <nav className="ml-2 hidden items-center gap-1 md:flex">
+        {/* Center — navigation. `min-w-0` + `overflow-x-auto` so the row
+            scrolls on a narrow laptop instead of shoving the account actions
+            off the right edge; the scrollbar itself is hidden because the
+            overflow is only ever a few items wide. */}
+        <nav
+          className="ml-2 hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto md:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
             return (
@@ -52,7 +57,7 @@ export function AdminNavbar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "relative rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  "relative shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors",
                   active
                     ? "text-admin-fg"
                     : "text-admin-muted hover:text-admin-fg-2"
@@ -75,7 +80,7 @@ export function AdminNavbar() {
         </nav>
 
         {/* Right — actions */}
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           <a
             href="/"
             target="_blank"

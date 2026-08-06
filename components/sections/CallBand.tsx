@@ -53,11 +53,16 @@ export function CallBand() {
             stacked phone buttons to reach the full measure. */}
         <Reveal delay={340} className="w-full sm:w-auto">
           <div className="mt-7 flex flex-col gap-3 sm:mt-9 sm:flex-row sm:items-center">
-            <Button href={telHref} size="lg">
+            <Button href={telHref} size="lg" data-cta-id="callband-call">
               <Icon name="phone" className="size-5" />
               {contact.phoneDisplay}
             </Button>
-            <Button href={whatsappHref} variant="onDark" size="lg">
+            <Button
+              href={whatsappHref}
+              variant="onDark"
+              size="lg"
+              data-cta-id="callband-whatsapp"
+            >
               <Icon name="whatsapp" className="size-5" />
               WhatsApp Us
             </Button>

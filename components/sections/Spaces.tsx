@@ -65,6 +65,12 @@ export function Spaces() {
                     href="#enquire"
                     variant="dark"
                     size="lg"
+                    // One id per space card, so the admin can tell an Office
+                    // enquiry apart from a Retail one.
+                    data-cta-id={`spaces-${item.title
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/^-|-$/g, "")}`}
                     className="mt-5 w-full sm:mt-6"
                   >
                     {item.cta}

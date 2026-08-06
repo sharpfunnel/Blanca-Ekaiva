@@ -24,6 +24,12 @@ interface LeadFormProps {
   onDark?: boolean;
   className?: string;
   submitLabel?: string;
+  /**
+   * Analytics key for the form collector. This component renders in two very
+   * different places (hero and the enquiry section) whose completion rates are
+   * worth telling apart, so each mount names itself.
+   */
+  formId?: string;
 }
 
 interface Errors {
@@ -42,6 +48,7 @@ export function LeadForm({
   onDark = false,
   className = "",
   submitLabel,
+  formId = "lead-form",
 }: LeadFormProps) {
   const router = useRouter();
   const uid = useId();
@@ -151,7 +158,12 @@ export function LeadForm({
   }`;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className={className}>
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      data-form-id={formId}
+      className={className}
+    >
       {/* Honeypot: visually hidden, ignored by humans and screen readers. */}
       <input
         type="text"

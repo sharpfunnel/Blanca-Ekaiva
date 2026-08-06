@@ -14,42 +14,22 @@
 import { record } from "rrweb";
 import type { eventWithTime } from "@rrweb/types";
 
+import { initCtaCollector } from "@/lib/track/collectors/cta";
+import { initErrorCollector } from "@/lib/track/collectors/errors";
+import { initFormCollector } from "@/lib/track/collectors/forms";
+import { initMouseCollector } from "@/lib/track/collectors/mouse";
+import { initVitalsCollector } from "@/lib/track/collectors/vitals";
+import type {
+  TrackError,
+  TrackEvent,
+  TrackEventType,
+  TrackerContext,
+  TrackVital,
+} from "@/lib/track/types";
+
 const SESSION_TTL = 30 * 60 * 1000; // 30 min inactivity ends a session
 
-type EventType =
-  | "PAGEVIEW"
-  | "CLICK"
-  | "CTA_CLICK"
-  | "ANCHOR_CLICK"
-  | "PHONE_CLICK"
-  | "WHATSAPP_CLICK"
-  | "EMAIL_CLICK"
-  | "DOWNLOAD_BROCHURE"
-  | "BOOK_SITE_VISIT"
-  | "FORM_OPEN"
-  | "FORM_START"
-  | "FORM_SUBMIT"
-  | "SECTION_VIEW"
-  | "SCROLL"
-  | "OUTBOUND_LINK";
-
-interface TrackEvent {
-  type: EventType;
-  path: string;
-  selector?: string;
-  text?: string;
-  x?: number;
-  y?: number;
-  pageX?: number;
-  pageY?: number;
-  relX?: number;
-  relY?: number;
-  vpW?: number;
-  vpH?: number;
-  scrollPct?: number;
-  meta?: Record<string, unknown>;
-  ts: number;
-}
+type EventType = TrackEventType;
 
 declare global {
   interface Window {
@@ -280,22 +260,63 @@ export function initTracker() {
   });
 
   // ── Event batching ───────────────────────────────────────────────────────
+  // Three lanes, one request. Behavioural events, Core Web Vitals and errors
+  // have nothing in common except when they are sent, so they ride together
+  // rather than each getting its own endpoint.
   let buffer: TrackEvent[] = [];
+  let vitalsBuffer: TrackVital[] = [];
+  let errorsBuffer: TrackError[] = [];
   const started = Date.now();
   const flush = (beacon = false) => {
-    if (!buffer.length) return;
+    if (!buffer.length && !vitalsBuffer.length && !errorsBuffer.length) return;
     const batch = buffer;
+    const vitals = vitalsBuffer;
+    const errors = errorsBuffer;
     buffer = [];
+    vitalsBuffer = [];
+    errorsBuffer = [];
     post(
       "/api/track/event",
-      { sessionId, visitorId, path, durationMs: Date.now() - started, events: batch },
+      {
+        sessionId,
+        visitorId,
+        path,
+        durationMs: Date.now() - started,
+        events: batch,
+        vitals,
+        errors,
+      },
       beacon
     );
   };
-  const track = (e: Omit<TrackEvent, "ts" | "path">) =>
-    buffer.push({ ...e, path, ts: Date.now() });
+  const track = (e: Omit<TrackEvent, "ts" | "path"> & { path?: string }) =>
+    buffer.push({ ...e, path: e.path ?? path, ts: Date.now() });
 
   track({ type: "PAGEVIEW" });
+
+  // ── Collectors ───────────────────────────────────────────────────────────
+  const unloadHandlers: (() => void)[] = [];
+  const ctx: TrackerContext = {
+    track,
+    vital: (v) => vitalsBuffer.push(v),
+    error: (e) => {
+      errorsBuffer.push(e);
+      // An error often precedes the visitor giving up and closing the tab.
+      flush();
+    },
+    flush,
+    onUnload: (fn) => unloadHandlers.push(fn),
+  };
+
+  const runUnloadHandlers = () => {
+    for (const fn of unloadHandlers) {
+      try {
+        fn();
+      } catch {
+        /* one bad handler must not stop the others or the final flush */
+      }
+    }
+  };
 
   const docSize = () => ({
     w: Math.max(document.documentElement.scrollWidth, innerWidth),
@@ -308,12 +329,16 @@ export function initTracker() {
     (ev) => {
       const target = ev.target as Element | null;
       if (!target) return;
+      const tagged = target.closest<HTMLElement>("[data-cta-id]");
       const { type, text } = classifyClick(target);
       const { w, h } = docSize();
       const pageX = ev.pageX;
       const pageY = ev.pageY;
       track({
-        type,
+        // A `data-cta-id` is an explicit declaration that this element is a
+        // CTA, so it outranks whatever the href/text heuristic guessed.
+        type: tagged ? "CTA_CLICK" : type,
+        ctaId: tagged?.dataset.ctaId,
         selector: selectorFor(target.closest("a,button") || target),
         text,
         x: ev.clientX,
@@ -373,29 +398,25 @@ export function initTracker() {
     /* IO unsupported — skip section tracking */
   }
 
-  // ── Form engagement ──────────────────────────────────────────────────────
-  let formStarted = false;
-  addEventListener(
-    "focusin",
-    (ev) => {
-      const t = ev.target as Element | null;
-      if (t?.closest("form") && !formStarted) {
-        formStarted = true;
-        track({ type: "FORM_OPEN" });
-        track({ type: "FORM_START" });
-        flush();
-      }
-    },
-    { capture: true }
-  );
-  addEventListener(
-    "submit",
-    () => {
-      track({ type: "FORM_SUBMIT" });
-      flush();
-    },
-    { capture: true }
-  );
+  // ── Modular collectors ───────────────────────────────────────────────────
+  // Form engagement (open/start/field-level/submit/abandon) lives in the forms
+  // collector; CTA view/hover in the CTA collector; frustration signals and the
+  // hover heatmap in the mouse collector. Each is independently skippable and
+  // none of them can throw into the others.
+  const collectors: [string, () => void][] = [
+    ["cta", () => initCtaCollector(ctx)],
+    ["forms", () => initFormCollector(ctx)],
+    ["mouse", () => initMouseCollector(ctx, { selectorFor, docSize })],
+    ["vitals", () => initVitalsCollector(ctx)],
+    ["errors", () => initErrorCollector(ctx)],
+  ];
+  for (const [, init] of collectors) {
+    try {
+      init();
+    } catch {
+      /* a collector that cannot start must not take the others with it */
+    }
+  }
 
   // ── Periodic flush + on hide ─────────────────────────────────────────────
   const interval = setInterval(() => flush(), 8_000);
@@ -405,6 +426,9 @@ export function initTracker() {
   });
   addEventListener("pagehide", () => {
     clearInterval(interval);
+    // Abandonment and other end-of-visit events are produced here, so they must
+    // be queued before the final flush, not after it.
+    runUnloadHandlers();
     flush(true);
   });
 

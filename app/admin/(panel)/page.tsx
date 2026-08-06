@@ -37,6 +37,9 @@ import { VisitorsChart } from "@/components/admin/charts/VisitorsChart";
 import { DonutChart } from "@/components/admin/charts/DonutChart";
 import { BarList } from "@/components/admin/charts/BarList";
 import { Funnel } from "@/components/admin/charts/Funnel";
+import { WorldMap } from "@/components/admin/charts/WorldMap";
+import { CountryList } from "@/components/admin/charts/CountryList";
+import { LiveBadge } from "@/components/admin/ui/LiveBadge";
 
 const METRIC_ICONS: Record<string, LucideIcon> = {
   visitors: Users,
@@ -73,6 +76,7 @@ export default function OverviewPage() {
         subtitle="Real-time performance of your landing page"
         actions={
           <>
+            <LiveBadge />
             <Segmented
               options={RANGE_OPTIONS.map((o) => ({ ...o }))}
               value={range}
@@ -215,13 +219,12 @@ export default function OverviewPage() {
             {isLoading || !data ? (
               <Skeleton className="h-40 w-full" />
             ) : (
-              <BarList
-                items={data.countries.map((c) => ({
+              <CountryList
+                data={data.countries.map((c) => ({
+                  code: c.code,
                   label: c.label,
                   value: c.value,
-                  leading: <span className="text-sm">{flag(c.code)}</span>,
                 }))}
-                color="#60a5fa"
               />
             )}
           </div>
@@ -238,6 +241,30 @@ export default function OverviewPage() {
                   label: p.title,
                   value: p.views,
                   hint: formatDuration(p.avgTimeMs),
+                }))}
+              />
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Where visitors are — real Natural Earth borders, projected offline.
+          See lib/admin/worldMapPaths.ts. */}
+      <div className="mt-3">
+        <Card>
+          <CardHeader
+            title="Visitors by Country"
+            subtitle="Shaded by share of visitors; dot size is proportional"
+          />
+          <div className="px-4 pb-4">
+            {isLoading || !data ? (
+              <Skeleton className="h-64 w-full" />
+            ) : (
+              <WorldMap
+                data={data.countries.map((c) => ({
+                  code: c.code,
+                  label: c.label,
+                  value: c.value,
                 }))}
               />
             )}
@@ -299,13 +326,5 @@ export default function OverviewPage() {
         </Card>
       </div>
     </div>
-  );
-}
-
-/** Country-code → emoji flag. */
-function flag(code: string): string {
-  if (!code || code.length !== 2) return "🌐";
-  return String.fromCodePoint(
-    ...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
   );
 }

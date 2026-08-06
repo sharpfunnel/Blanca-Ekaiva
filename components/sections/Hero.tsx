@@ -131,11 +131,16 @@ export function Hero() {
 
           <Reveal delay={700}>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button href="#enquire" size="lg">
+              <Button href="#enquire" size="lg" data-cta-id="hero-enquire">
                 {hero.primaryCta}
                 <Icon name="arrowRight" className="size-5" />
               </Button>
-              <Button href={telHref} variant="onDark" size="lg">
+              <Button
+                href={telHref}
+                variant="onDark"
+                size="lg"
+                data-cta-id="hero-call"
+              >
                 <Icon name="phone" className="size-5" />
                 {hero.secondaryCta}
               </Button>
@@ -158,7 +163,12 @@ export function Hero() {
                 Share your details and Rahul will send the floor plans and
                 current pricing.
               </p>
-              <LeadForm variant="compact" onDark className="mt-5 sm:mt-6" />
+              <LeadForm
+                variant="compact"
+                onDark
+                formId="hero-lead-form"
+                className="mt-5 sm:mt-6"
+              />
             </div>
           </Reveal>
         </div>
